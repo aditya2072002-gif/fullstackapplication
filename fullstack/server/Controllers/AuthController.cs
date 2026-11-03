@@ -1,6 +1,5 @@
 using fullstackapplication.Server.Contracts;
 using fullstackapplication.Server.Data;
-using fullstackapplication.Server.Dtos;
 using fullstackapplication.Server.Models;
 using fullstackapplication.Server.Services;
 using Microsoft.AspNetCore.Identity;
@@ -44,7 +43,7 @@ public sealed class AuthController(
         }
 
         var (accessToken, expiresAtUtc) = tokenService.CreateToken(account);
-        var user = new AccountSummaryResponse(account.Id, account.Username, account.DisplayName, account.Role);
+        var user = new fullstackapplication.Server.Contracts.AccountSummaryResponse(account.Id, account.Username, account.DisplayName, account.Role);
         return Ok(new LoginResponse(accessToken, "Bearer", expiresAtUtc, user));
     }
 }

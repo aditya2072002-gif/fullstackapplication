@@ -1,4 +1,4 @@
-using fullstackapplication.Server.Dtos;
+using fullstackapplication.Server.Contracts;
 
 namespace fullstackapplication.Server.Services;
 

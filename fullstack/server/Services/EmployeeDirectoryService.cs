@@ -1,4 +1,4 @@
-using fullstackapplication.Server.Dtos;
+using fullstackapplication.Server.Contracts;
 using fullstackapplication.Server.Models;
 using fullstackapplication.Server.Repositories;
 
