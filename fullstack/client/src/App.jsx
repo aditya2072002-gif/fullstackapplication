@@ -1,4 +1,21 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
+import {
+    Alert,
+    Box,
+    Button,
+    Card,
+    CardContent,
+    Container,
+    CssBaseline,
+    Stack,
+    TextField,
+    ThemeProvider,
+    Typography,
+    createTheme,
+} from '@mui/material';
+import { AdminDashboard } from './AdminDashboard.jsx';
+import { CandidatePortal } from './CandidatePortal.jsx';
+import { apiRequest } from './api.js';
 import './App.css';
 
 function App() {
@@ -7,47 +24,18 @@ function App() {
     const [session, setSession] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [loginError, setLoginError] = useState('');
-    const [candidates, setCandidates] = useState([]);
-    const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
-    const [candidateError, setCandidateError] = useState('');
+    const [darkMode, setDarkMode] = useState(() => localStorage.getItem('portal-dark-mode') === 'true');
+    const theme = useMemo(() => createTheme({
+        palette: {
+            mode: darkMode ? 'dark' : 'light',
+            primary: { main: darkMode ? '#91b5ed' : '#193b68' },
+            background: { default: darkMode ? '#101723' : '#f4f7fc', paper: darkMode ? '#192333' : '#ffffff' },
+        },
+    }), [darkMode]);
 
     useEffect(() => {
-        if (session?.user?.role !== 'Admin') {
-            return undefined;
-        }
-
-        const controller = new AbortController();
-        async function loadCandidates() {
-            try {
-                const response = await fetch('/api/candidates', {
-                    headers: { Authorization: `Bearer ${session.accessToken}` },
-                    signal: controller.signal,
-                });
-
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        setSession(null);
-                        setCandidates([]);
-                        setLoginError('Your session expired. Please sign in again.');
-                    }
-                    throw new Error(`Could not load candidates (HTTP ${response.status}).`);
-                }
-
-                setCandidates(await response.json());
-            } catch (error) {
-                if (error.name !== 'AbortError') {
-                    setCandidateError(error.message || 'Could not load candidates.');
-                }
-            } finally {
-                if (!controller.signal.aborted) {
-                    setIsLoadingCandidates(false);
-                }
-            }
-        }
-
-        loadCandidates();
-        return () => controller.abort();
-    }, [session]);
+        localStorage.setItem('portal-dark-mode', String(darkMode));
+    }, [darkMode]);
 
     async function handleLogin(event) {
         event.preventDefault();
@@ -55,32 +43,23 @@ function App() {
         setLoginError('');
 
         try {
-            const response = await fetch('/api/auth/login', {
+            const result = await apiRequest('/api/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password }),
             });
 
-            if (!response.ok) {
-                setLoginError(response.status === 401
-                    ? 'Invalid username or password.'
-                    : `Login failed (HTTP ${response.status}).`);
-                return;
-            }
-
-            const result = await response.json();
             if (!['Admin', 'Candidate'].includes(result.user?.role)) {
                 setLoginError('This account has an unsupported role.');
                 return;
             }
 
-            setCandidates([]);
-            setCandidateError('');
-            setIsLoadingCandidates(result.user.role === 'Admin');
             setSession(result);
             setPassword('');
-        } catch {
-            setLoginError('Could not reach the server. Check that the API is running and try again.');
+        } catch (error) {
+            setLoginError(error.status === 401
+                ? 'Invalid username or password.'
+                : error.message || 'Could not reach the server. Check that the API is running and try again.');
         } finally {
             setIsSubmitting(false);
         }
@@ -88,100 +67,110 @@ function App() {
 
     function handleLogout() {
         setSession(null);
-        setCandidates([]);
-        setCandidateError('');
         setLoginError('');
         setUsername('');
         setPassword('');
     }
 
-    if (!session) {
-        return (
-            <main className="page-shell">
-                <section className="login-card" aria-labelledby="login-title">
-                    <p className="eyebrow">Fullstack application</p>
-                    <h1 id="login-title">Sign in</h1>
-                    <p className="intro">Use your account to continue to your portal.</p>
-                    <form onSubmit={handleLogin}>
-                        <label htmlFor="username">Username</label>
-                        <input
-                            autoComplete="username"
-                            id="username"
-                            name="username"
-                            onChange={event => setUsername(event.target.value)}
-                            required
-                            value={username}
-                        />
-                        <label htmlFor="password">Password</label>
-                        <input
-                            autoComplete="current-password"
-                            id="password"
-                            name="password"
-                            onChange={event => setPassword(event.target.value)}
-                            required
-                            type="password"
-                            value={password}
-                        />
-                        {loginError && <p className="error-message" role="alert">{loginError}</p>}
-                        <button className="primary-button" disabled={isSubmitting} type="submit">
-                            {isSubmitting ? 'Signing in…' : 'Sign in'}
-                        </button>
-                    </form>
-                </section>
-            </main>
-        );
+    if (session?.user?.role === 'Admin') {
+        return <ThemeProvider theme={theme}><CssBaseline /><AdminDashboard darkMode={darkMode} onDarkModeChange={setDarkMode} session={session} onLogout={handleLogout} /></ThemeProvider>;
     }
 
-    if (session.user.role === 'Candidate') {
-        return (
-            <main className="page-shell">
-                <section className="welcome-card" aria-labelledby="welcome-title">
-                    <p className="eyebrow">Candidate portal</p>
-                    <h1 id="welcome-title">Welcome to Candidate Portal</h1>
-                    <p className="intro">Signed in as {session.user.displayName}.</p>
-                    <button className="secondary-button" onClick={handleLogout} type="button">Log out</button>
-                </section>
-            </main>
-        );
+    if (session?.user?.role === 'Candidate') {
+        return <ThemeProvider theme={theme}><CssBaseline /><CandidatePortal darkMode={darkMode} onDarkModeChange={setDarkMode} session={session} onLogout={handleLogout} /></ThemeProvider>;
     }
 
     return (
-        <main className="page-shell admin-page">
-            <header className="page-header">
-                <div>
-                    <p className="eyebrow">Admin portal</p>
-                    <h1>Welcome to Admin Portal</h1>
-                    <p className="intro">Signed in as {session.user.displayName}.</p>
-                </div>
-                <button className="secondary-button" onClick={handleLogout} type="button">Log out</button>
-            </header>
-            <section className="list-card" aria-labelledby="candidate-list-title">
-                <h2 id="candidate-list-title">Candidates</h2>
-                {isLoadingCandidates && <p className="status-message">Loading candidates…</p>}
-                {candidateError && <p className="error-message" role="alert">{candidateError}</p>}
-                {!isLoadingCandidates && !candidateError && candidates.length === 0 && (
-                    <p className="status-message">No candidates found.</p>
-                )}
-                {candidates.length > 0 && (
-                    <div className="table-scroll">
-                        <table>
-                            <thead>
-                                <tr><th>Name</th><th>Username</th><th>Role</th></tr>
-                            </thead>
-                            <tbody>
-                                {candidates.map(candidate => (
-                                    <tr key={candidate.id}>
-                                        <td>{candidate.displayName}</td>
-                                        <td>{candidate.username}</td>
-                                        <td><span className="role-badge">{candidate.role}</span></td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </section>
-        </main>
+        <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box className={`app-shell login-shell${darkMode ? ' theme-dark' : ''}`}>
+            <Container className="login-container" maxWidth={false}>
+                <Box className="login-layout">
+                    <Box component="section" className="login-showcase" aria-labelledby="login-showcase-title">
+                        <Box className="login-brand">
+                            <Box className="login-brand-mark" aria-hidden="true">
+                                <svg fill="none" viewBox="0 0 32 32">
+                                    <path d="M7 22.5 13.1 16l4.3 4.1L25 10" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+                                    <path d="M19.5 10H25v5.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+                                </svg>
+                            </Box>
+                            <Typography component="span" className="login-brand-name">Work Tracking</Typography>
+                        </Box>
+                        <Box className="login-showcase-copy">
+                            <Typography className="login-kicker">A clearer way to move work forward</Typography>
+                            <Typography id="login-showcase-title" component="h1" className="login-showcase-title">
+                                Your work,<br />in good <span>focus.</span>
+                            </Typography>
+                            <Typography className="login-showcase-description">
+                                Bring daily progress, learning, and feedback together in one workspace built for your team.
+                            </Typography>
+                        </Box>
+                        <Box className="login-artwork" aria-hidden="true">
+                            <svg className="login-artwork-lines" fill="none" viewBox="0 0 580 330">
+                                <path d="M13 279c74-4 76-125 157-125 67 0 63 77 128 77 63 0 63-112 139-112 51 0 69 44 130 34" stroke="url(#login-line-gradient)" strokeDasharray="5 9" strokeLinecap="round" strokeWidth="2" />
+                                <path d="M33 298c87-5 80-112 148-112 65 0 67 72 120 72 72 0 75-95 137-95 45 0 72 34 119 27" stroke="url(#login-line-gradient)" strokeLinecap="round" strokeOpacity=".38" strokeWidth="1.5" />
+                                <defs><linearGradient id="login-line-gradient" x1="13" x2="567" y1="198" y2="198" gradientUnits="userSpaceOnUse"><stop stopColor="#8DD9D0" /><stop offset=".52" stopColor="#A3B5FF" /><stop offset="1" stopColor="#FFC486" /></linearGradient></defs>
+                            </svg>
+                            <Box className="login-orbit login-orbit-one" />
+                            <Box className="login-orbit login-orbit-two" />
+                            <Card className="login-insight-card" elevation={0}>
+                                <Stack direction="row" alignItems="center" justifyContent="space-between">
+                                    <Box><Typography className="login-insight-label">Weekly progress</Typography><Typography className="login-insight-value">On track</Typography></Box>
+                                    <Box className="login-insight-indicator" aria-hidden="true">↗</Box>
+                                </Stack>
+                                <Box className="login-chart" aria-hidden="true">
+                                    {[38, 58, 46, 74, 62, 88, 70].map((height, index) => <Box className="login-chart-bar" key={index} sx={{ height: `${height}%` }} />)}
+                                </Box>
+                                <Stack direction="row" justifyContent="space-between"><Typography className="login-chart-caption">Daily momentum</Typography><Typography className="login-chart-caption">This week</Typography></Stack>
+                            </Card>
+                            <Box className="login-artwork-spark login-artwork-spark-one" />
+                            <Box className="login-artwork-spark login-artwork-spark-two" />
+                        </Box>
+                        <Typography className="login-showcase-footer">One workspace. Clearer progress.</Typography>
+                    </Box>
+                    <Card className="login-card" elevation={0}>
+                        <CardContent className="login-card-content">
+                            <Stack spacing={3}>
+                                <Box>
+                                    <Typography className="eyebrow">Welcome back</Typography>
+                                    <Typography component="h2" variant="h4" className="page-title">Sign in</Typography>
+                                    <Typography color="text.secondary" sx={{ mt: 1 }}>
+                                        Use your account to continue to your portal.
+                                    </Typography>
+                                </Box>
+                                <Box component="form" onSubmit={handleLogin}>
+                                    <Stack spacing={2}>
+                                        <TextField
+                                            autoComplete="username"
+                                            autoFocus
+                                            fullWidth
+                                            label="Username"
+                                            onChange={event => setUsername(event.target.value)}
+                                            required
+                                            value={username}
+                                        />
+                                        <TextField
+                                            autoComplete="current-password"
+                                            fullWidth
+                                            label="Password"
+                                            onChange={event => setPassword(event.target.value)}
+                                            required
+                                            type="password"
+                                            value={password}
+                                        />
+                                        {loginError && <Alert severity="error">{loginError}</Alert>}
+                                        <Button disabled={isSubmitting} type="submit" variant="contained" size="large">
+                                            {isSubmitting ? 'Signing in…' : 'Sign in'}
+                                        </Button>
+                                    </Stack>
+                                </Box>
+                            </Stack>
+                        </CardContent>
+                    </Card>
+                </Box>
+            </Container>
+        </Box>
+        </ThemeProvider>
     );
 }
 

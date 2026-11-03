@@ -15,37 +15,69 @@ public static class DevelopmentDataSeeder
     {
         var demoAccounts = new[]
         {
-            new { Username = "admin", DisplayName = "Demo Administrator", Role = EmployeeRoles.Admin, PasswordKey = "DemoAccounts:AdminPassword" },
-            new { Username = "candidate", DisplayName = "Demo Candidate", Role = EmployeeRoles.Candidate, PasswordKey = "DemoAccounts:CandidatePassword" }
+            (Username: "admin", DisplayName: "Demo Administrator", Role: EmployeeRoles.Admin, PasswordKey: "DemoAccounts:AdminPassword"),
+            (Username: "candidate", DisplayName: "Demo Candidate", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate01", DisplayName: "Avery Morgan", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate02", DisplayName: "Jordan Lee", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate03", DisplayName: "Taylor Brooks", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate04", DisplayName: "Casey Rivera", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate05", DisplayName: "Riley Chen", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate06", DisplayName: "Morgan Patel", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate07", DisplayName: "Quinn Davis", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate08", DisplayName: "Jamie Wilson", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword"),
+            (Username: "candidate09", DisplayName: "Alex Kim", Role: EmployeeRoles.Candidate, PasswordKey: "DemoAccounts:CandidatePassword")
         };
 
         foreach (var demoAccount in demoAccounts)
         {
             var normalizedUsername = demoAccount.Username.ToUpperInvariant();
-            var exists = await dbContext.EmployeeAccounts.AnyAsync(
-                account => account.NormalizedUsername == normalizedUsername,
-                cancellationToken);
-            if (exists)
+            var account = await dbContext.EmployeeAccounts
+                .Include(employee => employee.CandidateProfile)
+                .SingleOrDefaultAsync(
+                    employee => employee.NormalizedUsername == normalizedUsername,
+                    cancellationToken);
+
+            if (account is null)
             {
-                continue;
+                var password = configuration[demoAccount.PasswordKey];
+                if (string.IsNullOrWhiteSpace(password))
+                {
+                    throw new InvalidOperationException($"Configure {demoAccount.PasswordKey} to seed development demo accounts.");
+                }
+
+                account = new EmployeeAccount
+                {
+                    Username = demoAccount.Username,
+                    NormalizedUsername = normalizedUsername,
+                    DisplayName = demoAccount.DisplayName,
+                    Role = demoAccount.Role,
+                    IsActive = true
+                };
+                account.PasswordHash = passwordHasher.HashPassword(account, password);
+                dbContext.EmployeeAccounts.Add(account);
             }
 
-            var password = configuration[demoAccount.PasswordKey];
-            if (string.IsNullOrWhiteSpace(password))
+            if (demoAccount.Role == EmployeeRoles.Candidate && account.CandidateProfile is null)
             {
-                throw new InvalidOperationException($"Configure {demoAccount.PasswordKey} to seed development demo accounts.");
+                var nameParts = demoAccount.DisplayName.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+                account.CandidateProfile = new CandidateProfile
+                {
+                    FirstName = nameParts[0],
+                    LastName = nameParts.Length > 1 ? nameParts[1] : string.Empty,
+                    Email = $"{demoAccount.Username}@development.invalid",
+                    PhoneNumber = string.Empty,
+                    Experience = "Development sample profile",
+                    PerformanceScore = 0
+                };
             }
 
-            var account = new EmployeeAccount
+            var candidateProfile = account.CandidateProfile;
+            if (demoAccount.Role == EmployeeRoles.Candidate
+                && candidateProfile is not null
+                && string.IsNullOrWhiteSpace(candidateProfile.Email))
             {
-                Username = demoAccount.Username,
-                NormalizedUsername = normalizedUsername,
-                DisplayName = demoAccount.DisplayName,
-                Role = demoAccount.Role,
-                IsActive = true
-            };
-            account.PasswordHash = passwordHasher.HashPassword(account, password);
-            dbContext.EmployeeAccounts.Add(account);
+                candidateProfile.Email = $"{demoAccount.Username}@development.invalid";
+            }
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);

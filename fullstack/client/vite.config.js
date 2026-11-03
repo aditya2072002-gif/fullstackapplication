@@ -34,8 +34,10 @@ if (!fs.existsSync(certFilePath) || !fs.existsSync(keyFilePath)) {
     }
 }
 
-const target = env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` :
-    env.ASPNETCORE_URLS ? env.ASPNETCORE_URLS.split(';')[0] : 'https://localhost:7216';
+const apiUrls = env.ASPNETCORE_URLS?.split(';').filter(Boolean) ?? [];
+const target = env.VITE_API_TARGET ??
+    (env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` :
+        apiUrls.find(url => url.startsWith('https://')) ?? apiUrls[0] ?? 'https://localhost:7216');
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -47,7 +49,7 @@ export default defineConfig({
     },
     server: {
         proxy: {
-            '^/api/': {
+            '^/api': {
                 target,
                 secure: false
             },

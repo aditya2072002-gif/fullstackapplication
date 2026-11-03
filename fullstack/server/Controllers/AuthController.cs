@@ -16,7 +16,7 @@ public sealed class AuthController(
     JwtTokenService tokenService) : ControllerBase
 {
     [HttpPost("login")]
-    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)] 
+    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
@@ -43,7 +43,7 @@ public sealed class AuthController(
         }
 
         var (accessToken, expiresAtUtc) = tokenService.CreateToken(account);
-        var user = new AccountSummaryResponse(account.Id, account.Username, account.DisplayName, account.Role);
+        var user = new fullstackapplication.Server.Contracts.AccountSummaryResponse(account.Id, account.Username, account.DisplayName, account.Role);
         return Ok(new LoginResponse(accessToken, "Bearer", expiresAtUtc, user));
     }
 }
