@@ -1,5 +1,6 @@
 using fullstackapplication.Server.Contracts;
 using fullstackapplication.Server.Data;
+using fullstackapplication.Server.Dtos;
 using fullstackapplication.Server.Models;
 using fullstackapplication.Server.Services;
 using Microsoft.AspNetCore.Identity;
@@ -16,7 +17,7 @@ public sealed class AuthController(
     JwtTokenService tokenService) : ControllerBase
 {
     [HttpPost("login")]
-    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)] 
+    [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request, CancellationToken cancellationToken)
