@@ -6,7 +6,16 @@ public interface IAdminCandidateRepository
 {
     Task<IReadOnlyList<EmployeeAccount>> GetCandidatesAsync(CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<EmployeeAccount>> GetCandidatesCreatedByAsync(int employeeAccountId, CancellationToken cancellationToken);
+
     Task<EmployeeAccount?> GetCandidateAsync(int id, CancellationToken cancellationToken);
+
+    Task<EmployeeAccount?> GetCandidateCreatedByAsync(
+        int id,
+        int employeeAccountId,
+        CancellationToken cancellationToken);
+
+    Task<CandidateProfile?> GetCandidateResumeAsync(int id, CancellationToken cancellationToken);
 
     Task<EmployeeAccount?> GetCandidateAccountAsync(int id, CancellationToken cancellationToken);
 

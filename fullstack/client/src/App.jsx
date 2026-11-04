@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import { AdminDashboard } from './AdminDashboard.jsx';
 import { CandidatePortal } from './CandidatePortal.jsx';
+import { EmployeePortal } from './EmployeePortal.jsx';
 import { apiRequest } from './api.js';
 import './App.css';
 
@@ -49,7 +50,7 @@ function App() {
                 body: JSON.stringify({ username, password }),
             });
 
-            if (!['Admin', 'Candidate'].includes(result.user?.role)) {
+            if (!['Admin', 'Employee', 'Candidate'].includes(result.user?.role)) {
                 setLoginError('This account has an unsupported role.');
                 return;
             }
@@ -74,6 +75,10 @@ function App() {
 
     if (session?.user?.role === 'Admin') {
         return <ThemeProvider theme={theme}><CssBaseline /><AdminDashboard darkMode={darkMode} onDarkModeChange={setDarkMode} session={session} onLogout={handleLogout} /></ThemeProvider>;
+    }
+
+    if (session?.user?.role === 'Employee') {
+        return <ThemeProvider theme={theme}><CssBaseline /><EmployeePortal darkMode={darkMode} onDarkModeChange={setDarkMode} session={session} onLogout={handleLogout} /></ThemeProvider>;
     }
 
     if (session?.user?.role === 'Candidate') {

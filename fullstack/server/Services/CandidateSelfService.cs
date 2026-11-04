@@ -89,7 +89,7 @@ public sealed class CandidateSelfService(
             profile.LastName,
             profile.Email,
             profile.PhoneNumber,
-            profile.Experience,
+            profile.YearsOfExperience,
             profile.Stack,
             profile.PerformanceScore,
             account.IsActive,

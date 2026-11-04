@@ -88,7 +88,12 @@ public sealed class CandidateController(
         }
 
         var result = await workTrackingService.UpdateCandidateEntryAsync(accountId.Value, entryId, request, cancellationToken);
-        return result.Kind == ServiceResultKind.NotFound ? NotFound() : Ok(result.Value);
+        return result.Kind switch
+        {
+            ServiceResultKind.NotFound => NotFound(),
+            ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
+            _ => Ok(result.Value)
+        };
     }
 
     [HttpDelete("work-tracking/{entryId:int}")]

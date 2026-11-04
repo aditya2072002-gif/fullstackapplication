@@ -66,7 +66,8 @@ public static class DevelopmentDataSeeder
                     LastName = nameParts.Length > 1 ? nameParts[1] : string.Empty,
                     Email = $"{demoAccount.Username}@development.invalid",
                     PhoneNumber = string.Empty,
-                    Experience = "Development sample profile",
+                    LegacyExperienceDetails = "Development sample profile",
+                    YearsOfExperience = 1,
                     PerformanceScore = 0
                 };
             }

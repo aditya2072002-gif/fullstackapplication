@@ -59,13 +59,19 @@ public class Program
         builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
         builder.Services.AddScoped<IPasswordHasher<EmployeeAccount>, PasswordHasher<EmployeeAccount>>();
         builder.Services.AddScoped<IAdminCandidateRepository, AdminCandidateRepository>();
+        builder.Services.AddScoped<IAuthRepository, AuthRepository>();
         builder.Services.AddScoped<ICandidateSelfRepository, CandidateSelfRepository>();
         builder.Services.AddScoped<IEmployeeDirectoryRepository, EmployeeDirectoryRepository>();
+        builder.Services.AddScoped<IEmployeeManagementRepository, EmployeeManagementRepository>();
+        builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
         builder.Services.AddScoped<IWorkTrackingRepository, WorkTrackingRepository>();
+        builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IWorkTrackingService, WorkTrackingService>();
+        builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IAdminCandidateService, AdminCandidateService>();
         builder.Services.AddScoped<ICandidateSelfService, CandidateSelfService>();
         builder.Services.AddScoped<IEmployeeDirectoryService, EmployeeDirectoryService>();
+        builder.Services.AddScoped<IEmployeeManagementService, EmployeeManagementService>();
         builder.Services.AddSingleton(new JwtTokenService(signingKeyBytes, issuer, audience, lifetimeMinutes));
         builder.Services.AddControllers();
         builder.Services.AddOpenApi();
@@ -145,7 +151,7 @@ public class Program
         if (app.Environment.IsDevelopment())
         {
             app.MapOpenApi();
-            app.UseSwagger();
+            app.UseSwagger(options => options.SerializeAsV2 = true);
             app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "Fullstack Application API v1"));
         }
 

@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using fullstackapplication.Server.Dtos;
 using fullstackapplication.Server.Models;
 using fullstackapplication.Server.Services;
@@ -8,7 +10,7 @@ namespace fullstackapplication.Server.Controllers;
 
 [ApiController]
 [Route("api/admin/work-tracking")]
-[Authorize(Roles = EmployeeRoles.Admin)]
+[Authorize(Roles = EmployeeRoles.Admin + "," + EmployeeRoles.Employee)]
 public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackingService) : ControllerBase
 {
     [HttpGet]
@@ -32,8 +34,11 @@ public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackin
             return BadRequest(new ProblemDetails { Title = "Grade must be between 0 and 100." });
         }
 
+        var accountId = GetAccountId();
+        if (accountId is null) return Forbid();
+        var isAdmin = User.IsInRole(EmployeeRoles.Admin);
         return Ok(await workTrackingService.SearchAsync(
-            candidateId, name, stack, dateFrom, dateTo, grade, cancellationToken));
+            candidateId, name, stack, dateFrom, dateTo, grade, accountId.Value, isAdmin, cancellationToken));
     }
 
     [HttpPut("{entryId:int}/review")]
@@ -45,12 +50,31 @@ public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackin
         ReviewCandidateWorkEntryRequest request,
         CancellationToken cancellationToken)
     {
-        var result = await workTrackingService.ReviewAsync(entryId, request, cancellationToken);
+        var reviewerAccountId = GetAccountId();
+        if (reviewerAccountId is null)
+        {
+            return Forbid();
+        }
+
+        var result = await workTrackingService.ReviewAsync(
+            reviewerAccountId.Value,
+            User.IsInRole(EmployeeRoles.Admin),
+            entryId,
+            request,
+            cancellationToken);
         return result.Kind switch
         {
             ServiceResultKind.NotFound => NotFound(),
+            ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
             ServiceResultKind.Invalid => BadRequest(new ProblemDetails { Title = result.Error }),
             _ => Ok(result.Value)
         };
+    }
+
+    private int? GetAccountId()
+    {
+        var subject = User.FindFirstValue(JwtRegisteredClaimNames.Sub)
+            ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return int.TryParse(subject, out var accountId) ? accountId : null;
     }
 }

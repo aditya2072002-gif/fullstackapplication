@@ -23,8 +23,8 @@ public sealed class CreateCandidateRequest
     [Required, StringLength(30)]
     public string PhoneNumber { get; set; } = string.Empty;
 
-    [Required, StringLength(2000)]
-    public string Experience { get; set; } = string.Empty;
+    [Range(1, 99)]
+    public int YearsOfExperience { get; set; }
 
     [StringLength(200)]
     public string Stack { get; set; } = string.Empty;
@@ -49,8 +49,8 @@ public sealed class UpdateCandidateRequest
     [StringLength(30)]
     public string? PhoneNumber { get; set; }
 
-    [Required, StringLength(2000)]
-    public string Experience { get; set; } = string.Empty;
+    [Range(1, 99)]
+    public int YearsOfExperience { get; set; }
 
     [StringLength(200)]
     public string Stack { get; set; } = string.Empty;
@@ -77,13 +77,15 @@ public sealed record CandidateProfileResponse(
     string LastName,
     string Email,
     string? PhoneNumber,
-    string Experience,
+    int? YearsOfExperience,
     string Stack,
     int PerformanceScore,
     bool IsActive,
     DateTime? InactiveAtUtc,
     string? ResumeFileName,
-    string? ResumeContentType);
+    string? ResumeContentType,
+    int? CreatorEmployeeAccountId = null,
+    string? CreatorDisplayName = null);
 
 public sealed class ResumeUploadRequest
 {

@@ -99,7 +99,7 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         AddFormValue(createForm, "LastName", "Candidate");
         AddFormValue(createForm, "Email", "new@example.com");
         AddFormValue(createForm, "PhoneNumber", "555-0101");
-        AddFormValue(createForm, "Experience", "Three years of experience");
+        AddFormValue(createForm, "YearsOfExperience", "3");
         AddFormValue(createForm, "PerformanceScore", "87");
         var createResponse = await _client.PostAsync("/api/admin/candidates", createForm);
         Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
@@ -280,6 +280,9 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         reviewResponse.EnsureSuccessStatusCode();
         using var reviewJson = JsonDocument.Parse(await reviewResponse.Content.ReadAsStringAsync());
         Assert.Equal(94, reviewJson.RootElement.GetProperty("grade").GetInt32());
+        Assert.Equal("Demo Administrator", reviewJson.RootElement.GetProperty("reviewedByDisplayName").GetString());
+        var duplicateReviewResponse = await _client.PutAsJsonAsync($"/api/admin/work-tracking/{entryId}/review", new { grade = 90, adminFeedback = "Second review" });
+        Assert.Equal(HttpStatusCode.Conflict, duplicateReviewResponse.StatusCode);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", candidateToken);
         var entriesResponse = await _client.GetAsync("/api/candidates/me/work-tracking");
@@ -287,9 +290,97 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         using var entriesJson = JsonDocument.Parse(await entriesResponse.Content.ReadAsStringAsync());
         Assert.Equal(94, Assert.Single(entriesJson.RootElement.EnumerateArray()).GetProperty("grade").GetInt32());
         Assert.Equal("Clear delivery.", entriesJson.RootElement[0].GetProperty("adminFeedback").GetString());
+        Assert.Equal("Demo Administrator", entriesJson.RootElement[0].GetProperty("reviewedByDisplayName").GetString());
         Assert.Equal("No blockers", entriesJson.RootElement[0].GetProperty("blockersAndChallenges").GetString());
+        var editReviewedResponse = await _client.PutAsJsonAsync($"/api/candidates/me/work-tracking/{entryId}", new
+        {
+            workDate = new DateOnly(2026, 11, 2), task = "Changed after review", hoursSpent = 1m,
+            accomplishment = "Attempt to modify reviewed entry", learnings = "Should remain locked", blockersAndChallenges = "None", aiToolsUsed = ""
+        });
+        Assert.Equal(HttpStatusCode.Conflict, editReviewedResponse.StatusCode);
         var deleteReviewedResponse = await _client.DeleteAsync($"/api/candidates/me/work-tracking/{entryId}");
         Assert.Equal(HttpStatusCode.Conflict, deleteReviewedResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task EmployeeMentorCanManageOwnedCandidatesAndSubmitOnlyOneReview()
+    {
+        var adminToken = await LoginAndGetTokenAsync("admin", "AdminDemo123!");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var employeeResponse = await _client.PostAsJsonAsync("/api/admin/employees", new
+        {
+            username = "mentor-test",
+            password = "MentorInitial123!",
+            displayName = "Mentor Test",
+            department = "Engineering",
+            stack = ".NET, React"
+        });
+        Assert.Equal(HttpStatusCode.Created, employeeResponse.StatusCode);
+        using var employeeJson = JsonDocument.Parse(await employeeResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Employee", employeeJson.RootElement.GetProperty("role").GetString());
+        Assert.Equal("Engineering", employeeJson.RootElement.GetProperty("department").GetString());
+
+        var employeeToken = await LoginAndGetTokenAsync("mentor-test", "MentorInitial123!");
+        using var employeeLogin = JsonDocument.Parse(await (await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            username = "mentor-test", password = "MentorInitial123!"
+        })).Content.ReadAsStringAsync());
+        Assert.Equal("Employee", employeeLogin.RootElement.GetProperty("user").GetProperty("role").GetString());
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
+
+        var createCandidateResponse = await _client.PostAsJsonAsync("/api/employee/candidates", new
+        {
+            username = "mentor-candidate",
+            password = "CandidateInitial123!",
+            firstName = "Mentored",
+            lastName = "Candidate",
+            email = "mentored@example.com",
+            phoneNumber = "5550102030",
+            stack = "React"
+        });
+        Assert.Equal(HttpStatusCode.Created, createCandidateResponse.StatusCode);
+        using var candidateJson = JsonDocument.Parse(await createCandidateResponse.Content.ReadAsStringAsync());
+        var candidateId = candidateJson.RootElement.GetProperty("id").GetInt32();
+        Assert.Equal("Mentor Test", candidateJson.RootElement.GetProperty("creatorDisplayName").GetString());
+        Assert.Equal(JsonValueKind.Null, candidateJson.RootElement.GetProperty("yearsOfExperience").ValueKind);
+
+        var employeeCandidates = await _client.GetAsync("/api/employee/candidates");
+        employeeCandidates.EnsureSuccessStatusCode();
+        using var employeeCandidatesJson = JsonDocument.Parse(await employeeCandidates.Content.ReadAsStringAsync());
+        Assert.Equal(candidateId, Assert.Single(employeeCandidatesJson.RootElement.EnumerateArray()).GetProperty("id").GetInt32());
+        Assert.Equal(HttpStatusCode.Forbidden, (await _client.GetAsync("/api/admin/employees")).StatusCode);
+
+        var candidateToken = await LoginAndGetTokenAsync("mentor-candidate", "CandidateInitial123!");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", candidateToken);
+        var workResponse = await _client.PostAsJsonAsync("/api/candidates/me/work-tracking", new
+        {
+            workDate = new DateOnly(2026, 11, 4), task = "Mentor assignment", hoursSpent = 2m,
+            accomplishment = "Completed work", learnings = "Learned mentoring flow", blockersAndChallenges = "None", aiToolsUsed = ""
+        });
+        workResponse.EnsureSuccessStatusCode();
+        using var workJson = JsonDocument.Parse(await workResponse.Content.ReadAsStringAsync());
+        var entryId = workJson.RootElement.GetProperty("id").GetInt32();
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
+        var employeeWork = await _client.GetAsync("/api/admin/work-tracking");
+        employeeWork.EnsureSuccessStatusCode();
+        using var employeeWorkJson = JsonDocument.Parse(await employeeWork.Content.ReadAsStringAsync());
+        Assert.Equal(entryId, Assert.Single(employeeWorkJson.RootElement.EnumerateArray()).GetProperty("id").GetInt32());
+        var mentorReview = await _client.PutAsJsonAsync($"/api/admin/work-tracking/{entryId}/review", new { grade = 92, adminFeedback = "Strong progress." });
+        mentorReview.EnsureSuccessStatusCode();
+        using var mentorReviewJson = JsonDocument.Parse(await mentorReview.Content.ReadAsStringAsync());
+        Assert.Equal("Mentor Test", mentorReviewJson.RootElement.GetProperty("reviewedByDisplayName").GetString());
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var adminReview = await _client.PutAsJsonAsync($"/api/admin/work-tracking/{entryId}/review", new { grade = 90, adminFeedback = "Second review." });
+        Assert.Equal(HttpStatusCode.Conflict, adminReview.StatusCode);
+        var adminNotifications = await _client.GetStringAsync("/api/notifications");
+        Assert.Contains("Mentored Candidate was created by Mentor Test", adminNotifications, StringComparison.Ordinal);
+        Assert.Contains("Mentored Candidate submitted", adminNotifications, StringComparison.Ordinal);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", candidateToken);
+        var candidateNotifications = await _client.GetStringAsync("/api/notifications");
+        Assert.Contains("Mentor Test reviewed", candidateNotifications, StringComparison.Ordinal);
     }
 
     private static MultipartFormDataContent CreateCandidateUpdateForm(bool isActive, string? phoneNumber = "555-0101")
@@ -302,7 +393,7 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         {
             AddFormValue(form, "PhoneNumber", phoneNumber);
         }
-        AddFormValue(form, "Experience", "Three years of experience");
+        AddFormValue(form, "YearsOfExperience", "3");
         AddFormValue(form, "PerformanceScore", "87");
         AddFormValue(form, "IsActive", isActive.ToString().ToLowerInvariant());
         return form;

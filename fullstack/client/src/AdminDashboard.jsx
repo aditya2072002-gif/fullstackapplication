@@ -9,10 +9,11 @@ import { apiRequest } from './api.js';
 import { PortalIcon } from './PortalIcon.jsx';
 import { PortalShell } from './PortalShell.jsx';
 import { WorkReviews } from './WorkReviews.jsx';
+import { EmployeeManagement } from './EmployeeManagement.jsx';
 
 const emptyForm = {
     username: '', password: '', firstName: '', lastName: '', email: '', phoneNumber: '',
-    experience: '', stack: '', performanceScore: '0', isActive: true,
+    yearsOfExperience: '', stack: '', performanceScore: '0', isActive: true,
 };
 
 export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }) {
@@ -20,6 +21,7 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
     const [selectedId, setSelectedId] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [downloadingResumeId, setDownloadingResumeId] = useState(null);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
     const [formOpen, setFormOpen] = useState(false);
@@ -37,7 +39,7 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
         const query = candidateFilter.trim().toLocaleLowerCase();
         if (!query) return candidates;
         return candidates.filter(candidate =>
-            `${candidate.firstName} ${candidate.lastName} ${candidate.username} ${candidate.email} ${candidate.phoneNumber || ''} ${candidate.stack || ''} ${candidate.experience || ''}`
+            `${candidate.firstName} ${candidate.lastName} ${candidate.username} ${candidate.email} ${candidate.phoneNumber || ''} ${candidate.stack || ''} ${candidate.yearsOfExperience ?? ''}`
                 .toLocaleLowerCase().includes(query));
     }, [candidateFilter, candidates]);
 
@@ -89,7 +91,7 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
             }
 
             const body = new FormData();
-            const fields = ['firstName', 'lastName', 'email', 'experience', 'stack', 'performanceScore'];
+            const fields = ['firstName', 'lastName', 'email', 'yearsOfExperience', 'stack', 'performanceScore'];
             if (!editing || formValues.isActive) fields.push('phoneNumber');
             if (!editing) fields.push('username', 'password');
             if (editing) fields.push('isActive');
@@ -105,6 +107,30 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
             setError(requestError.message || 'Could not save the candidate profile.');
         } finally {
             setIsSaving(false);
+        }
+    }
+
+    async function downloadResume(candidate) {
+        if (!candidate.resumeFileName || downloadingResumeId !== null) return;
+        setDownloadingResumeId(candidate.id);
+        setError('');
+        try {
+            const resume = await apiRequest(`/api/admin/candidates/${candidate.id}/resume`, {
+                token: session.accessToken,
+                responseType: 'blob',
+            });
+            const downloadUrl = URL.createObjectURL(resume);
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.download = candidate.resumeFileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+        } catch (requestError) {
+            setError(requestError.message || 'Could not download the candidate resume.');
+        } finally {
+            setDownloadingResumeId(null);
         }
     }
 
@@ -171,11 +197,13 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
                                     <TableHead><TableRow>
                                         <TableCell padding="checkbox" />
                                         <TableCell>Name</TableCell>
+                                        <TableCell>Created by</TableCell>
                                         <TableCell>Username</TableCell>
                                         <TableCell>Email</TableCell>
                                         <TableCell>Phone</TableCell>
                                         <TableCell>Technology stack</TableCell>
-                                        <TableCell>Experience</TableCell>
+                                        <TableCell>Years of experience</TableCell>
+                                        <TableCell>Resume</TableCell>
                                         <TableCell>Performance score</TableCell>
                                         <TableCell>Status</TableCell>
                                         <TableCell>Inactive since</TableCell>
@@ -187,23 +215,40 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
                                             return <TableRow hover key={candidate.id} onClick={() => setSelectedId(candidateId)} selected={isSelected} sx={{ cursor: 'pointer' }}>
                                                 <TableCell padding="checkbox"><Radio aria-label={`Select ${candidate.firstName} ${candidate.lastName}`} checked={isSelected} onChange={() => setSelectedId(candidateId)} value={candidateId} /></TableCell>
                                                 <TableCell><DirectoryValue value={`${candidate.firstName} ${candidate.lastName}`} /></TableCell>
+                                                <TableCell><DirectoryValue value={candidate.creatorDisplayName || 'Admin-created'} /></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.username} /></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.email} /></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.phoneNumber || '—'} /></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.stack || 'Not provided'} /></TableCell>
-                                                <TableCell><DirectoryValue value={candidate.experience || 'Not provided'} /></TableCell>
+                                                <TableCell><DirectoryValue value={candidate.yearsOfExperience == null ? 'Not provided' : `${candidate.yearsOfExperience} years`} /></TableCell>
+                                                <TableCell>
+                                                    <Stack alignItems="center" direction="row" spacing={1}>
+                                                        <DirectoryValue value={candidate.resumeFileName || 'No resume uploaded'} />
+                                                        <Button
+                                                            disabled={!candidate.resumeFileName || downloadingResumeId !== null}
+                                                            onClick={event => {
+                                                                event.stopPropagation();
+                                                                downloadResume(candidate);
+                                                            }}
+                                                            size="small"
+                                                        >
+                                                            {downloadingResumeId === candidate.id ? 'Downloading...' : 'Download'}
+                                                        </Button>
+                                                    </Stack>
+                                                </TableCell>
                                                 <TableCell><DirectoryValue value={String(candidate.performanceScore)} /></TableCell>
                                                 <TableCell><Chip color={candidate.isActive ? 'success' : 'default'} label={candidate.isActive ? 'Active' : 'Inactive'} size="small" /></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.inactiveAtUtc ? new Date(candidate.inactiveAtUtc).toLocaleDateString() : '—'} /></TableCell>
                                             </TableRow>;
                                         })}
-                                        {filteredCandidates.length === 0 && <TableRow><TableCell colSpan={10} sx={{ color: 'text.secondary', py: 4, textAlign: 'center' }}>No candidates match that search.</TableCell></TableRow>}
+                                        {filteredCandidates.length === 0 && <TableRow><TableCell colSpan={12} sx={{ color: 'text.secondary', py: 4, textAlign: 'center' }}>No candidates match that search.</TableCell></TableRow>}
                                     </TableBody>
                                 </Table>
                             </TableContainer>
                         </>}
                     </Box>}
                     {activeMenu === 'reviews' && <WorkReviews session={session} visible />}
+                    {activeMenu === 'employees' && <EmployeeManagement session={session} />}
             </>
             <Dialog onClose={() => setProfileOpen(false)} open={profileOpen}>
                 <DialogTitle>Admin profile</DialogTitle>
@@ -218,15 +263,19 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
                 <Formik
                     enableReinitialize
                     initialValues={editing && selectedCandidate
-                        ? { ...emptyForm, ...selectedCandidate, password: '', performanceScore: String(selectedCandidate.performanceScore) }
+                        ? { ...emptyForm, ...selectedCandidate, password: '', yearsOfExperience: selectedCandidate.yearsOfExperience == null ? '' : String(selectedCandidate.yearsOfExperience), performanceScore: String(selectedCandidate.performanceScore) }
                         : { ...emptyForm }}
                     onSubmit={saveCandidate}
                     validate={values => {
                         if (editing && !values.isActive) return {};
                         const errors = {};
-                        ['firstName', 'lastName', 'email', 'experience'].forEach(field => {
+                        ['firstName', 'lastName', 'email'].forEach(field => {
                             if (!values[field]?.trim()) errors[field] = 'This field is required.';
                         });
+                        const yearsOfExperience = Number(values.yearsOfExperience);
+                        if (!Number.isInteger(yearsOfExperience) || yearsOfExperience < 1 || yearsOfExperience > 99) {
+                            errors.yearsOfExperience = 'Enter a whole number from 1 to 99.';
+                        }
                         if ((!editing || values.isActive) && !/^\d{10}$/.test(values.phoneNumber || '')) errors.phoneNumber = 'Enter a 10-digit phone number.';
                         if (!editing && (values.username.trim().length < 3 || values.username.length > 50)) errors.username = 'Enter a username with 3 to 50 characters.';
                         if (!editing && (values.password.length < 12 || values.password.length > 128)) errors.password = 'Password must contain 12 to 128 characters.';
@@ -247,7 +296,7 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
                                 <TextField disabled={fieldsDisabled} error={Boolean(formik.touched.lastName && formik.errors.lastName)} helperText={formik.touched.lastName && formik.errors.lastName} label="Last name" name="lastName" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.lastName} inputProps={{ maxLength: 50 }} />
                                 <TextField disabled={fieldsDisabled} error={Boolean(formik.touched.email && formik.errors.email)} helperText={formik.touched.email && formik.errors.email} label="Email" name="email" onBlur={formik.handleBlur} onChange={formik.handleChange} required type="email" value={formik.values.email} inputProps={{ maxLength: 254 }} />
                                 <TextField disabled={fieldsDisabled} error={Boolean(formik.touched.phoneNumber && formik.errors.phoneNumber)} helperText={formik.touched.phoneNumber && formik.errors.phoneNumber || 'Enter 10 digits.'} inputProps={{ inputMode: 'numeric', maxLength: 10, pattern: '[0-9]{10}' }} label="Phone number" name="phoneNumber" onBlur={formik.handleBlur} onChange={event => formik.setFieldValue('phoneNumber', event.target.value.replace(/\D/g, '').slice(0, 10))} required={!editing || Boolean(formik.values.isActive)} type="tel" value={formik.values.phoneNumber || ''} />
-                                <TextField disabled={fieldsDisabled} error={Boolean(formik.touched.experience && formik.errors.experience)} helperText={formik.touched.experience && formik.errors.experience} label="Experience" multiline minRows={2} name="experience" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.experience} inputProps={{ maxLength: 2000 }} />
+                                <TextField disabled={fieldsDisabled} error={Boolean(formik.touched.yearsOfExperience && formik.errors.yearsOfExperience)} helperText={formik.touched.yearsOfExperience && formik.errors.yearsOfExperience || 'Enter a whole number from 1 to 99.'} inputProps={{ min: 1, max: 99, step: 1 }} label="Years of experience" name="yearsOfExperience" onBlur={formik.handleBlur} onChange={formik.handleChange} required type="number" value={formik.values.yearsOfExperience} />
                                 <TextField disabled={fieldsDisabled} helperText="For example: React, .NET, SQL Server" label="Technology stack" name="stack" onBlur={formik.handleBlur} onChange={formik.handleChange} value={formik.values.stack} inputProps={{ maxLength: 200 }} />
                                 <TextField disabled={fieldsDisabled} error={Boolean(formik.touched.performanceScore && formik.errors.performanceScore)} helperText={formik.touched.performanceScore && formik.errors.performanceScore} label="Performance score" name="performanceScore" inputProps={{ min: 0, max: 100 }} onBlur={formik.handleBlur} onChange={formik.handleChange} required type="number" value={formik.values.performanceScore} />
                                 {editing && <FormControlLabel control={<Switch checked={Boolean(formik.values.isActive)} disabled={isSaving} onChange={event => formik.setFieldValue('isActive', event.target.checked)} />} label={formik.values.isActive ? 'Active' : 'Inactive'} />}

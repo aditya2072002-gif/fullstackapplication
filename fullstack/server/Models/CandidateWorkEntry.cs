@@ -28,5 +28,9 @@ public sealed class CandidateWorkEntry
 
     public DateTime? ReviewedAtUtc { get; set; }
 
+    public int? ReviewedByEmployeeAccountId { get; set; }
+
+    public EmployeeAccount? ReviewedByEmployeeAccount { get; set; }
+
     public CandidateProfile CandidateProfile { get; set; } = null!;
 }

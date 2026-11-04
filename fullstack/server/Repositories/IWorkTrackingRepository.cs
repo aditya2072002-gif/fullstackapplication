@@ -15,9 +15,19 @@ public interface IWorkTrackingRepository
         DateOnly? dateFrom,
         DateOnly? dateTo,
         int? grade,
+        int? ownerEmployeeId,
         CancellationToken cancellationToken);
 
     Task<CandidateWorkEntry?> GetEntryAsync(int entryId, CancellationToken cancellationToken);
+
+    Task<bool> TrySaveReviewAsync(
+        int entryId,
+        int reviewerAccountId,
+        int grade,
+        string? feedback,
+        DateTime reviewedAtUtc,
+        int? ownerEmployeeId,
+        CancellationToken cancellationToken);
 
     Task AddAsync(CandidateWorkEntry entry, CancellationToken cancellationToken);
 

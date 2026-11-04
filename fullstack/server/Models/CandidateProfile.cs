@@ -12,11 +12,17 @@ public sealed class CandidateProfile
 
     public string? PhoneNumber { get; set; }
 
-    public string Experience { get; set; } = string.Empty;
+    public string LegacyExperienceDetails { get; set; } = string.Empty;
+
+    public int? YearsOfExperience { get; set; }
 
     public string Stack { get; set; } = string.Empty;
 
     public int PerformanceScore { get; set; }
+
+    public int? CreatorEmployeeAccountId { get; set; }
+
+    public EmployeeAccount? CreatorEmployeeAccount { get; set; }
 
     public ICollection<CandidateWorkEntry> WorkEntries { get; set; } = new List<CandidateWorkEntry>();
 

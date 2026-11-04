@@ -127,7 +127,7 @@ export function CandidatePortal({ session, onLogout, darkMode, onDarkModeChange 
                                         <ProfileField label="Username" value={profile.username} />
                                         <ProfileField label="Email" value={profile.email} />
                                         <ProfileField label="Phone number" value={profile.phoneNumber || 'Not provided'} />
-                                        <ProfileField label="Experience" value={profile.experience || 'Not provided'} />
+                                        <ProfileField label="Years of experience" value={profile.yearsOfExperience == null ? 'Not provided' : `${profile.yearsOfExperience} years`} />
                                         <ProfileField label="Performance score" value={profile.performanceScore} />
                                         <ProfileField label="Resume" value={profile.resumeFileName || 'No resume uploaded'} />
                                     </Box>

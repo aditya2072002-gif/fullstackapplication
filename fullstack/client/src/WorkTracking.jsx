@@ -126,7 +126,7 @@ export function WorkTracking({ session }) {
                             <Typography component="h2" variant="h5">Work tracking</Typography>
                         </Box>
                         <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-                            Record completed work and submit it for your administrator to review. Editing a reviewed entry sends it back for review.
+                            Record completed work for your employee-mentor or an administrator to review. Each entry can be reviewed once.
                         </Typography>
                     </Box>
                     <WorkReportChart data={reportData} description="Average reviewed grade by date for your most recent reviewed work." descriptionScale="0–100 points" maxValue={100} title="Grade report" valueLabel="points" />
@@ -141,7 +141,7 @@ export function WorkTracking({ session }) {
                                     <TableCell padding="checkbox" />
                                     <TableCell>Date</TableCell><TableCell>Task</TableCell><TableCell>Hours</TableCell>
                                     <TableCell>Accomplishment</TableCell><TableCell>Learnings</TableCell><TableCell>Blockers / challenges</TableCell><TableCell>AI tools</TableCell>
-                                    <TableCell>Review</TableCell>
+                                    <TableCell>Review</TableCell><TableCell>Reviewed by</TableCell>
                                 </TableRow></TableHead>
                                 <TableBody>
                                     {entries.map(entry => (
@@ -155,9 +155,10 @@ export function WorkTracking({ session }) {
                                             <TableCell><TableValue value={entry.blockersAndChallenges} /></TableCell>
                                             <TableCell><TableValue value={entry.aiToolsUsed || '—'} /></TableCell>
                                             <TableCell><TableValue value={`${entry.grade === null ? 'Awaiting review' : `${entry.grade}/100`}${entry.adminFeedback ? ` — ${entry.adminFeedback}` : ''}`} /></TableCell>
+                                            <TableCell><TableValue value={entry.reviewedByDisplayName || '—'} /></TableCell>
                                         </TableRow>
                                     ))}
-                                    {entries.length === 0 && <TableRow><TableCell colSpan={9}>
+                                    {entries.length === 0 && <TableRow><TableCell colSpan={10}>
                                         <Stack alignItems="center" className="empty-state empty-state-inline" spacing={1}>
                                             <Box className="empty-state-icon"><PortalIcon name="empty" size={28} /></Box>
                                             <Typography color="text.secondary">No work entries yet. Add your first entry below.</Typography>
@@ -194,7 +195,7 @@ export function WorkTracking({ session }) {
                                 <Stack alignItems={{ sm: 'center' }} direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" spacing={1}>
                                     <Box>
                                         <Typography component="h3" variant="h6">{selectedId ? 'Edit selected entry' : 'Add work entry'}</Typography>
-                                        {selectedEntry?.grade !== null && selectedEntry && <Typography color="text.secondary" variant="body2">Reviewed entries cannot be deleted. Editing will resubmit this entry for review.</Typography>}
+                                        {selectedEntry?.grade !== null && selectedEntry && <Typography color="text.secondary" variant="body2">This entry was reviewed by {selectedEntry.reviewedByDisplayName || 'your mentor'} and is locked.</Typography>}
                                     </Box>
                                     <Stack direction="row" flexWrap="wrap" spacing={1} useFlexGap>
                                         {selectedId && <Button disabled={saving} onClick={startNewEntry} variant="outlined">Add new entry</Button>}
@@ -203,17 +204,17 @@ export function WorkTracking({ session }) {
                                 </Stack>
                                 <Box className="work-entry-grid-scroll">
                                     <Box className="work-entry-grid">
-                                        <TextField error={Boolean(formik.touched.workDate && formik.errors.workDate)} helperText={formik.touched.workDate && formik.errors.workDate} InputLabelProps={{ shrink: true }} label="Date" name="workDate" onBlur={formik.handleBlur} onChange={formik.handleChange} required type="date" value={formik.values.workDate} />
-                                        <TextField error={Boolean(formik.touched.task && formik.errors.task)} helperText={formik.touched.task && formik.errors.task} inputProps={{ maxLength: 200 }} label="Task" name="task" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.task} />
-                                        <TextField error={Boolean(formik.touched.hoursSpent && formik.errors.hoursSpent)} helperText={formik.touched.hoursSpent && formik.errors.hoursSpent} inputProps={{ min: 0.1, max: 24, step: 0.1 }} label="Hours spent" name="hoursSpent" onBlur={formik.handleBlur} onChange={formik.handleChange} required type="number" value={formik.values.hoursSpent} />
-                                        <TextField error={Boolean(formik.touched.accomplishment && formik.errors.accomplishment)} helperText={formik.touched.accomplishment && formik.errors.accomplishment} label="Accomplishment" minRows={2} multiline name="accomplishment" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.accomplishment} />
-                                        <TextField error={Boolean(formik.touched.learnings && formik.errors.learnings)} helperText={formik.touched.learnings && formik.errors.learnings} label="Learnings" minRows={2} multiline name="learnings" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.learnings} />
-                                        <TextField error={Boolean(formik.touched.blockersAndChallenges && formik.errors.blockersAndChallenges)} helperText={formik.touched.blockersAndChallenges && formik.errors.blockersAndChallenges} inputProps={{ maxLength: 2000 }} label="Blockers / challenges" minRows={2} multiline name="blockersAndChallenges" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.blockersAndChallenges} />
-                                        <TextField label="AI tools used" name="aiToolsUsed" onBlur={formik.handleBlur} onChange={formik.handleChange} value={formik.values.aiToolsUsed} />
+                                        <TextField disabled={saving || Boolean(selectedEntry && selectedEntry.grade !== null)} error={Boolean(formik.touched.workDate && formik.errors.workDate)} helperText={formik.touched.workDate && formik.errors.workDate} InputLabelProps={{ shrink: true }} label="Date" name="workDate" onBlur={formik.handleBlur} onChange={formik.handleChange} required type="date" value={formik.values.workDate} />
+                                        <TextField disabled={saving || Boolean(selectedEntry && selectedEntry.grade !== null)} error={Boolean(formik.touched.task && formik.errors.task)} helperText={formik.touched.task && formik.errors.task} inputProps={{ maxLength: 200 }} label="Task" name="task" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.task} />
+                                        <TextField disabled={saving || Boolean(selectedEntry && selectedEntry.grade !== null)} error={Boolean(formik.touched.hoursSpent && formik.errors.hoursSpent)} helperText={formik.touched.hoursSpent && formik.errors.hoursSpent} inputProps={{ min: 0.1, max: 24, step: 0.1 }} label="Hours spent" name="hoursSpent" onBlur={formik.handleBlur} onChange={formik.handleChange} required type="number" value={formik.values.hoursSpent} />
+                                        <TextField disabled={saving || Boolean(selectedEntry && selectedEntry.grade !== null)} error={Boolean(formik.touched.accomplishment && formik.errors.accomplishment)} helperText={formik.touched.accomplishment && formik.errors.accomplishment} label="Accomplishment" minRows={2} multiline name="accomplishment" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.accomplishment} />
+                                        <TextField disabled={saving || Boolean(selectedEntry && selectedEntry.grade !== null)} error={Boolean(formik.touched.learnings && formik.errors.learnings)} helperText={formik.touched.learnings && formik.errors.learnings} label="Learnings" minRows={2} multiline name="learnings" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.learnings} />
+                                        <TextField disabled={saving || Boolean(selectedEntry && selectedEntry.grade !== null)} error={Boolean(formik.touched.blockersAndChallenges && formik.errors.blockersAndChallenges)} helperText={formik.touched.blockersAndChallenges && formik.errors.blockersAndChallenges} inputProps={{ maxLength: 2000 }} label="Blockers / challenges" minRows={2} multiline name="blockersAndChallenges" onBlur={formik.handleBlur} onChange={formik.handleChange} required value={formik.values.blockersAndChallenges} />
+                                        <TextField disabled={saving || Boolean(selectedEntry && selectedEntry.grade !== null)} label="AI tools used" name="aiToolsUsed" onBlur={formik.handleBlur} onChange={formik.handleChange} value={formik.values.aiToolsUsed} />
                                     </Box>
                                 </Box>
                                 <Stack direction="row" justifyContent="flex-end">
-                                    <Button disabled={saving || formik.isSubmitting} startIcon={<PortalIcon name={selectedId ? 'work' : 'add'} />} type="submit" variant="contained">{saving ? 'Submitting...' : selectedId ? 'Update and resubmit' : 'Submit work entry'}</Button>
+                                    <Button disabled={saving || formik.isSubmitting || Boolean(selectedEntry && selectedEntry.grade !== null)} startIcon={<PortalIcon name={selectedId ? 'work' : 'add'} />} type="submit" variant="contained">{saving ? 'Submitting...' : selectedEntry && selectedEntry.grade !== null ? 'Reviewed' : selectedId ? 'Update and resubmit' : 'Submit work entry'}</Button>
                                 </Stack>
                             </Stack>
                         </Box>}

@@ -27,15 +27,13 @@ namespace fullstackapplication.Server.Migrations
                     b.Property<int>("EmployeeAccountId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("CreatorEmployeeAccountId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(254)
                         .HasColumnType("nvarchar(254)");
-
-                    b.Property<string>("Experience")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
@@ -46,6 +44,12 @@ namespace fullstackapplication.Server.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("LegacyExperienceDetails")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("LegacyExperienceDetails");
 
                     b.Property<int>("PerformanceScore")
                         .HasColumnType("int");
@@ -70,7 +74,12 @@ namespace fullstackapplication.Server.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int?>("YearsOfExperience")
+                        .HasColumnType("int");
+
                     b.HasKey("EmployeeAccountId");
+
+                    b.HasIndex("CreatorEmployeeAccountId");
 
                     b.ToTable("CandidateProfiles");
                 });
@@ -120,6 +129,9 @@ namespace fullstackapplication.Server.Migrations
                     b.Property<DateTime?>("ReviewedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("ReviewedByEmployeeAccountId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("SubmittedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -133,6 +145,8 @@ namespace fullstackapplication.Server.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ReviewedByEmployeeAccountId");
+
                     b.HasIndex("CandidateProfileId", "WorkDate");
 
                     b.ToTable("CandidateWorkEntries");
@@ -145,6 +159,10 @@ namespace fullstackapplication.Server.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -172,6 +190,10 @@ namespace fullstackapplication.Server.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("Stack")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -185,13 +207,60 @@ namespace fullstackapplication.Server.Migrations
                     b.ToTable("EmployeeAccounts");
                 });
 
+            modelBuilder.Entity("fullstackapplication.Server.Models.UserNotification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Details")
+                        .IsRequired()
+                        .HasMaxLength(2200)
+                        .HasColumnType("nvarchar(2200)");
+
+                    b.Property<DateTime?>("DismissedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
+
+                    b.Property<int>("RecipientEmployeeAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("RelatedWorkEntryId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecipientEmployeeAccountId", "DismissedAtUtc", "CreatedAtUtc");
+
+                    b.ToTable("UserNotifications");
+                });
+
             modelBuilder.Entity("fullstackapplication.Server.Models.CandidateProfile", b =>
                 {
+                    b.HasOne("fullstackapplication.Server.Models.EmployeeAccount", "CreatorEmployeeAccount")
+                        .WithMany()
+                        .HasForeignKey("CreatorEmployeeAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("fullstackapplication.Server.Models.EmployeeAccount", "EmployeeAccount")
                         .WithOne("CandidateProfile")
                         .HasForeignKey("fullstackapplication.Server.Models.CandidateProfile", "EmployeeAccountId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("CreatorEmployeeAccount");
 
                     b.Navigation("EmployeeAccount");
                 });
@@ -204,7 +273,23 @@ namespace fullstackapplication.Server.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("fullstackapplication.Server.Models.EmployeeAccount", "ReviewedByEmployeeAccount")
+                        .WithMany()
+                        .HasForeignKey("ReviewedByEmployeeAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("CandidateProfile");
+
+                    b.Navigation("ReviewedByEmployeeAccount");
+                });
+
+            modelBuilder.Entity("fullstackapplication.Server.Models.UserNotification", b =>
+                {
+                    b.HasOne("fullstackapplication.Server.Models.EmployeeAccount", null)
+                        .WithMany()
+                        .HasForeignKey("RecipientEmployeeAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("fullstackapplication.Server.Models.CandidateProfile", b =>
