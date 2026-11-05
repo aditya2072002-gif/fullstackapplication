@@ -22,12 +22,21 @@ The admin portal has **Candidate directory** and **Work reviews** tabs. The dire
 
 Task grades are stored on individual work entries. They do not silently overwrite the existing profile performance score.
 
+### Employee / mentor experience
+
+Employees can create candidates from their portal, then view, update, and activate/deactivate only candidates created by their own account. Employee work reviews are limited to those candidates. Admins can create Employee accounts from employee management and retain broader candidate and review access. These restrictions are enforced by authenticated API routes and repository ownership filters, not just by the UI.
+
+When a Candidate is created by an Employee, active Admins receive a notification. When a Candidate submits or resubmits work, active Admins and the Employee who created that Candidate receive notifications. Reviewing work sends a notification with grade and feedback to the Candidate. Notifications are private to each recipient and can be marked read or dismissed.
+
 ### Frontend files
 
 - `fullstack/client/src/CandidatePortal.jsx` — candidate navigation, profile, and stack editing.
 - `fullstack/client/src/WorkTracking.jsx` — candidate entry list, create/edit form, and review status.
-- `fullstack/client/src/AdminDashboard.jsx` — admin tabs and candidate directory.
-- `fullstack/client/src/WorkReviews.jsx` — filters, candidate selection, task review, and grading.
+- `fullstack/client/src/AdminDashboard.jsx` — admin candidate directory, employee management, and review navigation.
+- `fullstack/client/src/EmployeePortal.jsx`, `EmployeeCandidates.jsx` — employee-owned candidate management and scoped review navigation.
+- `fullstack/client/src/EmployeeManagement.jsx` — Admin employee listing and account creation.
+- `fullstack/client/src/WorkReviews.jsx` — filters, candidate selection, task review, and grading for Admins and Employees.
+- `fullstack/client/src/NotificationsInbox.jsx`, `src/PortalShell.jsx` — recipient-specific notification display and read/dismiss actions.
 - `fullstack/client/src/api.js` — shared authenticated HTTP requests and API error handling.
 - `fullstack/client/src/App.css`, `src/index.css` — responsive navy SaaS layout, full-width workspace, candidate cards, task-entry grid, and review-filter spacing.
 
@@ -48,7 +57,7 @@ All service calls use the signed-in access token. Loading, saving, success, and 
 | `Learnings` | Learning notes (up to 2,000 characters). |
 | `BlockersAndChallenges` | Blockers or challenges encountered (up to 2,000 characters). |
 | `AiToolsUsed` | AI tools used (up to 500 characters; may be empty). |
-| `Grade` | Optional admin score from 0 through 100. |
+| `Grade` | Optional reviewer score from 0 through 100. |
 | `AdminFeedback` | Optional reviewer notes (up to 2,000 characters). |
 | `SubmittedAtUtc` / `ReviewedAtUtc` | Submission and review timestamps. |
 
@@ -83,14 +92,30 @@ Create/update JSON shape:
 
 Editing a previously graded entry clears its grade, feedback, and review timestamp and updates the submission timestamp so the modified work is clearly awaiting another review.
 
+### Employee endpoints
+
+These routes require a JWT with the `Employee` role. Candidate IDs are checked against the signed-in Employee's ownership on reads, updates, and status changes.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/employee/candidates` | List candidates created by the signed-in Employee only. |
+| `GET` | `/api/employee/candidates/{candidateId}` | Read an owned candidate; other employees' candidates return `404`. |
+| `POST` | `/api/employee/candidates` | Create a Candidate owned by the signed-in Employee. |
+| `PUT` | `/api/employee/candidates/{candidateId}` | Update an owned candidate. |
+| `PATCH` | `/api/employee/candidates/{candidateId}/status` | Activate or deactivate an owned candidate. |
+
+Employee work review uses `/api/admin/work-tracking` and `/api/admin/work-tracking/{entryId}/review`; the API applies the Employee's account ID as an ownership filter.
+
 ### Admin endpoints
 
-Admin routes require a JWT with the `Admin` role.
+Admin routes require a JWT with the `Admin` role. Admins can create employee accounts through `POST /api/admin/employees`, manage candidates through `/api/admin/candidates`, and review work across candidates. Employee creation is not available to Employees.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/admin/candidates` | List candidate profiles, including stack, for directory and candidate selection. |
-| `GET` | `/api/admin/work-tracking` | Search entries using optional query parameters: `candidateId`, `name`, `stack`, `dateFrom`, `dateTo`, and `grade`. |
+| `GET` | `/api/admin/employees` | List employee accounts. |
+| `POST` | `/api/admin/employees` | Create an Employee account; may return `400` for invalid input or `409` for a conflict. |
+| `GET` | `/api/admin/work-tracking` | Search entries using optional query parameters: `candidateId`, `name`, `stack`, `dateFrom`, `dateTo`, and `grade`. Admins can search across candidates. |
 | `PUT` | `/api/admin/work-tracking/{entryId}/review` | Set a grade and optional feedback for a work entry. |
 
 Example filter:
@@ -109,6 +134,16 @@ Review JSON body:
 ```
 
 A reversed date range and grade outside 0–100 produce `400 Bad Request`. Missing entries return `404 Not Found`. Role restrictions are enforced by ASP.NET Core authorization attributes, not by the frontend menus.
+
+### Notifications
+
+All notification routes require authentication and operate only on the account identified by the validated token. Candidate work submissions create notifications for active Admins and, when the Candidate has an Employee owner, that Employee. Candidate creation by an Employee notifies active Admins. Completing a review notifies the Candidate with the grade and feedback.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/notifications` | List the signed-in user's active notifications. |
+| `POST` | `/api/notifications/read` | Mark the signed-in user's notifications as read. |
+| `DELETE` | `/api/notifications/{id}` | Dismiss one of the signed-in user's notifications. |
 
 ### Backend files
 
