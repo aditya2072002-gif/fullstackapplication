@@ -78,7 +78,7 @@ npm run build
 ## Documentation
 
 - [Full project guide](fullstack/docs/PROJECT-GUIDE.md) — architecture, API endpoints, persistence, authentication, setup, and testing.
-- [Client project flow](fullstack/client/PROJECT_FLOW.md) — frontend structure and request flow.
+- [Client project flow](fullstack/client/README.md) — frontend structure and request flow.
 - [Server README](fullstack/server/README.md) — API configuration, endpoints, and local development details.
 - [Work tracking guide](fullstack/WORK-TRACKING-GUIDE.md) — work entry and review behavior.
 
