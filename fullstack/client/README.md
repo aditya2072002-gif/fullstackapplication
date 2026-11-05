@@ -106,6 +106,18 @@ For example, when a candidate submits a report, `WorkTracking.jsx` submits the f
 | `package.json` | Client scripts and declared direct npm dependencies. |
 | `package-lock.json` | Exact resolved dependency versions for reproducible installs. |
 
+### JWT authentication in the frontend
+
+The frontend handles the login request and uses the access token returned by the API; it does not create or cryptographically validate JWTs.
+
+| File | JWT responsibility |
+|---|---|
+| `src/App.jsx` | Sends credentials to `POST /api/auth/login`, keeps the returned token and user in React session state, selects the portal based on the user's role, and clears the session on logout. The token is not persisted in browser storage. |
+| `src/api.js` | Adds the session token as a Bearer authorization header to authenticated API requests. |
+| `src/api/notifications.js` and other API modules | Pass the token through the shared `apiRequest` helper when calling protected endpoints. |
+
+The API creates the signed token in `server/Services/JwtTokenService.cs` and configures JWT bearer validation in `server/Program.cs`. See [JWT authentication and token lifecycle](../docs/PROJECT-GUIDE.md#jwt-authentication-and-token-lifecycle) for the complete flow.
+
 ## 7. Backend flow and responsibilities
 
 The frontend is part of a full-stack solution. The following backend files are relevant to the request path:
