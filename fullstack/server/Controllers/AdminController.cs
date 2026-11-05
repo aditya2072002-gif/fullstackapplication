@@ -25,6 +25,17 @@ public sealed class AdminController(IAdminCandidateService candidateService) : C
         return result.Kind == ServiceResultKind.NotFound ? NotFound() : Ok(result.Value);
     }
 
+    [HttpGet("{id:int}/resume")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadCandidateResume(int id, CancellationToken cancellationToken)
+    {
+        var result = await candidateService.GetCandidateResumeAsync(id, cancellationToken);
+        return result.Kind == ServiceResultKind.NotFound || result.Value is null
+            ? NotFound()
+            : File(result.Value.Content, result.Value.ContentType, result.Value.FileName);
+    }
+
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(CandidateResumeUploadValidator.MaxRequestSizeBytes)]

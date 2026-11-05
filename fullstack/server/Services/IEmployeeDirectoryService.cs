@@ -1,10 +1,10 @@
-using fullstackapplication.Server.Contracts;
+using fullstackapplication.Server.Dtos;
 
 namespace fullstackapplication.Server.Services;
 
 public interface IEmployeeDirectoryService
 {
-    Task<IReadOnlyList<AccountSummaryResponse>> GetAdminsAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<AccountSummaryResponseDto>> GetAdminsAsync(CancellationToken cancellationToken);
 
-    Task<IReadOnlyList<AccountSummaryResponse>> GetCandidatesAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<AccountSummaryResponseDto>> GetCandidatesAsync(CancellationToken cancellationToken);
 }

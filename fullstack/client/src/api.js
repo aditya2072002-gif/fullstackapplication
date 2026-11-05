@@ -6,7 +6,7 @@ export class ApiError extends Error {
     }
 }
 
-export async function apiRequest(url, { token, ...options } = {}) {
+export async function apiRequest(url, { token, responseType = 'json', ...options } = {}) {
     const headers = new Headers(options.headers);
     if (token) {
         headers.set('Authorization', `Bearer ${token}`);
@@ -31,5 +31,5 @@ export async function apiRequest(url, { token, ...options } = {}) {
         return null;
     }
 
-    return response.json();
+    return responseType === 'blob' ? response.blob() : response.json();
 }

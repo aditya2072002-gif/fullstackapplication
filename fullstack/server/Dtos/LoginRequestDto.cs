@@ -1,8 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace fullstackapplication.Server.Contracts;
+namespace fullstackapplication.Server.Dtos;
 
-public sealed class LoginRequest
+public sealed class LoginRequestDto
 {
     [Required]
     [StringLength(50, MinimumLength = 1)]

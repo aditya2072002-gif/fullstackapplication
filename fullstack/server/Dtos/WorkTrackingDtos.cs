@@ -51,7 +51,11 @@ public sealed record CandidateWorkEntryResponse(
     int? Grade,
     string? AdminFeedback,
     DateTime SubmittedAtUtc,
-    DateTime? ReviewedAtUtc);
+    DateTime? ReviewedAtUtc,
+    int? ReviewedByEmployeeAccountId,
+    string? ReviewedByDisplayName,
+    int? MentorEmployeeAccountId,
+    string? MentorDisplayName);
 
 public sealed class UpdateCandidateStackRequest
 {

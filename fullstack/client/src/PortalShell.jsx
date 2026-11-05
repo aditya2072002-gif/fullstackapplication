@@ -3,13 +3,27 @@ import {
     Avatar, Box, Button, Container, FormControlLabel, IconButton, Menu, MenuItem, Stack, Switch, Typography,
 } from '@mui/material';
 import { PortalIcon } from './PortalIcon.jsx';
+import { NotificationsInbox } from './NotificationsInbox.jsx';
 
-export function PortalShell({ title, role, session, activeMenu, onMenuChange, onProfile, onLogout, darkMode, onDarkModeChange, children }) {
+export function PortalShell({
+    activeMenu,
+    darkMode,
+    onDarkModeChange,
+    onLogout,
+    onMenuChange,
+    onProfile,
+    role,
+    session,
+    title,
+    children,
+}) {
     const [profileAnchor, setProfileAnchor] = useState(null);
     const isAdmin = role === 'Admin';
     const sections = isAdmin
-        ? [{ id: 'directory', label: 'Candidate list', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }]
-        : [{ id: 'profile', label: 'Candidate profile', icon: 'candidate' }, { id: 'work', label: 'Work tracking', icon: 'work' }];
+        ? [{ id: 'directory', label: 'Candidate list', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }, { id: 'employees', label: 'Employees', icon: 'employee' }]
+        : role === 'Employee'
+            ? [{ id: 'candidates', label: 'My candidates', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }]
+            : [{ id: 'profile', label: 'Candidate profile', icon: 'candidate' }, { id: 'work', label: 'Work tracking', icon: 'work' }];
     const initials = (session.user.displayName || session.user.username || role).split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
 
     return (
@@ -25,6 +39,7 @@ export function PortalShell({ title, role, session, activeMenu, onMenuChange, on
                             </Box>
                         </Box>
                         <Stack className="portal-header-actions" direction="row" alignItems="center" spacing={1}>
+                            <NotificationsInbox session={session} />
                             <Typography className="portal-signed-in" color="text.secondary">{session.user.displayName}</Typography>
                             <IconButton aria-label="Open profile menu" onClick={event => setProfileAnchor(event.currentTarget)}>
                                 <Avatar className="profile-avatar">{initials}</Avatar>
@@ -48,7 +63,7 @@ export function PortalShell({ title, role, session, activeMenu, onMenuChange, on
                 </Stack>
             </Container>
             <Menu anchorEl={profileAnchor} onClose={() => setProfileAnchor(null)} open={Boolean(profileAnchor)}>
-                <MenuItem onClick={() => { setProfileAnchor(null); onProfile(); }}>{isAdmin ? 'Admin profile' : 'Candidate profile'}</MenuItem>
+                <MenuItem onClick={() => { setProfileAnchor(null); onProfile(); }}>{role === 'Admin' ? 'Admin profile' : role === 'Employee' ? 'Employee profile' : 'Candidate profile'}</MenuItem>
                 <MenuItem disableRipple>
                     <FormControlLabel
                         control={<Switch checked={darkMode} onChange={event => onDarkModeChange(event.target.checked)} />}

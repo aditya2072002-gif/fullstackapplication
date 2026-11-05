@@ -96,7 +96,7 @@ export function WorkReviews({ session, visible }) {
                             <Box className="section-icon"><PortalIcon name="review" /></Box>
                             <Typography component="h2" variant="h5">Work reviews</Typography>
                         </Box>
-                        <Typography color="text.secondary" sx={{ mt: 0.5 }}>Filter submitted tasks, select an entry, and provide a grade and feedback.</Typography>
+                        <Typography color="text.secondary" sx={{ mt: 0.5 }}>Filter submitted tasks, select an entry, and provide its one-time grade and feedback review.</Typography>
                     </Box>
                     <WorkReportChart data={reportData} description="Average grade per candidate for the work entries currently shown." maxValue={100} descriptionScale="0–100 points" title="Candidate review report" valueLabel="points" />
                     {error && <Alert severity="error">{error}</Alert>}
@@ -127,17 +127,18 @@ export function WorkReviews({ session, visible }) {
                     {loading ? <Box className="loading-state"><CircularProgress size={26} /><Typography>Loading reviews...</Typography></Box> : (
                         <TableContainer>
                             <Table className="work-review-table" size="small" aria-label="Candidate work entries to review">
-                                <TableHead><TableRow><TableCell padding="checkbox"/><TableCell>Candidate</TableCell><TableCell>Stack</TableCell><TableCell>Date</TableCell><TableCell>Task</TableCell><TableCell>Hours</TableCell><TableCell>Grade</TableCell><TableCell>Accomplishment</TableCell><TableCell>Learnings</TableCell><TableCell>Blockers / challenges</TableCell><TableCell>AI tools</TableCell></TableRow></TableHead>
+                                <TableHead><TableRow><TableCell padding="checkbox"/><TableCell>Candidate</TableCell><TableCell>Mentor</TableCell><TableCell>Reviewed by</TableCell><TableCell>Stack</TableCell><TableCell>Date</TableCell><TableCell>Task</TableCell><TableCell>Hours</TableCell><TableCell>Grade</TableCell><TableCell>Accomplishment</TableCell><TableCell>Learnings</TableCell><TableCell>Blockers / challenges</TableCell><TableCell>AI tools</TableCell></TableRow></TableHead>
                                 <TableBody>
                                     {entries.map(entry => (
                                         <TableRow hover key={entry.id} onClick={() => selectEntry(entry)} selected={String(entry.id) === selectedId} sx={{ cursor: 'pointer' }}>
                                             <TableCell padding="checkbox"><Radio aria-label={`Review ${entry.task} by ${entry.candidateFirstName}`} checked={String(entry.id) === selectedId} onChange={() => selectEntry(entry)} /></TableCell>
                                             <TableCell>{entry.candidateFirstName} {entry.candidateLastName}</TableCell>
+                                            <TableCell>{entry.mentorDisplayName || 'Admin-created'}</TableCell><TableCell>{entry.reviewedByDisplayName || 'Pending'}</TableCell>
                                             <TableCell>{entry.stack || '—'}</TableCell><TableCell>{entry.workDate}</TableCell><TableCell>{entry.task}</TableCell><TableCell>{entry.hoursSpent}</TableCell>
                                             <TableCell>{entry.grade ?? 'Pending'}</TableCell><TableCell>{entry.accomplishment}</TableCell><TableCell>{entry.learnings}</TableCell><TableCell>{entry.blockersAndChallenges}</TableCell><TableCell>{entry.aiToolsUsed || '—'}</TableCell>
                                         </TableRow>
                                     ))}
-                                    {entries.length === 0 && <TableRow><TableCell colSpan={11}>
+                                    {entries.length === 0 && <TableRow><TableCell colSpan={13}>
                                         <Stack alignItems="center" className="empty-state empty-state-inline" spacing={1}>
                                             <Box className="empty-state-icon"><PortalIcon name="review" size={28} /></Box>
                                             <Typography color="text.secondary">No work entries match these filters.</Typography>
@@ -163,8 +164,9 @@ export function WorkReviews({ session, visible }) {
                             <Stack alignItems={{ sm: 'center' }} direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                                 <Typography component="h3" variant="h6" sx={{ flexGrow: 1 }}>Review: {selectedEntry.candidateFirstName} {selectedEntry.candidateLastName} — {selectedEntry.task}</Typography>
                                 <TextField
+                                    disabled={saving || selectedEntry.grade !== null}
                                     error={Boolean(formik.touched.grade && formik.errors.grade)}
-                                    helperText={formik.touched.grade && formik.errors.grade || 'Select a score from 0 to 100.'}
+                                    helperText={selectedEntry.grade !== null ? `Reviewed by ${selectedEntry.reviewedByDisplayName || 'an administrator or employee'}. This review is locked.` : formik.touched.grade && formik.errors.grade || 'Select a score from 0 to 100.'}
                                     InputLabelProps={{ shrink: true }}
                                     label="Grade (0–100)"
                                     name="grade"
@@ -179,8 +181,8 @@ export function WorkReviews({ session, visible }) {
                                     {Array.from({ length: 101 }, (_, score) => <MenuItem key={score} value={String(score)}>{score}</MenuItem>)}
                                 </TextField>
                             </Stack>
-                            <TextField fullWidth label="Admin feedback" minRows={2} multiline name="feedback" onChange={formik.handleChange} sx={{ mt: 2 }} value={formik.values.feedback} />
-                            <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}><Button disabled={saving || formik.isSubmitting} type="submit" variant="contained">{saving ? 'Saving...' : 'Save review'}</Button></Stack>
+                            <TextField disabled={saving || selectedEntry.grade !== null} fullWidth label="Review feedback" minRows={2} multiline name="feedback" onChange={formik.handleChange} sx={{ mt: 2 }} value={formik.values.feedback} />
+                            <Stack direction="row" justifyContent="flex-end" sx={{ mt: 2 }}><Button disabled={saving || formik.isSubmitting || selectedEntry.grade !== null} type="submit" variant="contained">{selectedEntry.grade !== null ? 'Review submitted' : saving ? 'Saving...' : 'Save review'}</Button></Stack>
                         </Box>}
                     </Formik>}
                 </Stack>

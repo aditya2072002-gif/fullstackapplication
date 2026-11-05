@@ -4,7 +4,9 @@ using fullstackapplication.Server.Repositories;
 
 namespace fullstackapplication.Server.Services;
 
-public sealed class WorkTrackingService(IWorkTrackingRepository repository) : IWorkTrackingService
+public sealed class WorkTrackingService(
+    IWorkTrackingRepository repository,
+    INotificationService notificationService) : IWorkTrackingService
 {
     public async Task<IReadOnlyList<CandidateWorkEntryResponse>> GetCandidateEntriesAsync(
         int accountId, CancellationToken cancellationToken) =>
@@ -29,6 +31,15 @@ public sealed class WorkTrackingService(IWorkTrackingRepository repository) : IW
         await repository.SaveChangesAsync(cancellationToken);
         var savedEntry = await repository.GetCandidateEntryAsync(accountId, entry.Id, cancellationToken)
             ?? throw new InvalidOperationException("The saved candidate work entry could not be reloaded.");
+        var profile = savedEntry.CandidateProfile
+            ?? throw new InvalidOperationException("The saved candidate profile could not be reloaded.");
+        await notificationService.NotifyTaskSubmittedAsync(
+            savedEntry.Id,
+            profile.CreatorEmployeeAccountId,
+            $"{profile.FirstName} {profile.LastName}",
+            savedEntry.Task,
+            profile.Stack,
+            cancellationToken);
         return ServiceResult<CandidateWorkEntryResponse>.Success(ToResponse(savedEntry));
     }
 
@@ -37,12 +48,23 @@ public sealed class WorkTrackingService(IWorkTrackingRepository repository) : IW
     {
         var entry = await repository.GetCandidateEntryAsync(accountId, entryId, cancellationToken);
         if (entry is null) return ServiceResult<CandidateWorkEntryResponse>.NotFound();
+        if (entry.Grade.HasValue)
+        {
+            return ServiceResult<CandidateWorkEntryResponse>.Conflict("A reviewed work entry cannot be changed.");
+        }
+
         ApplyCandidateUpdate(entry, request);
-        entry.Grade = null;
-        entry.AdminFeedback = null;
-        entry.ReviewedAtUtc = null;
         entry.SubmittedAtUtc = DateTime.UtcNow;
         await repository.SaveChangesAsync(cancellationToken);
+        var profile = entry.CandidateProfile
+            ?? throw new InvalidOperationException("The candidate profile could not be reloaded for notification.");
+        await notificationService.NotifyTaskSubmittedAsync(
+            entry.Id,
+            profile.CreatorEmployeeAccountId,
+            $"{profile.FirstName} {profile.LastName}",
+            entry.Task,
+            profile.Stack,
+            cancellationToken);
         return ServiceResult<CandidateWorkEntryResponse>.Success(ToResponse(entry));
     }
 
@@ -63,20 +85,52 @@ public sealed class WorkTrackingService(IWorkTrackingRepository repository) : IW
 
     public async Task<IReadOnlyList<CandidateWorkEntryResponse>> SearchAsync(
         int? candidateId, string? name, string? stack, DateOnly? dateFrom, DateOnly? dateTo,
-        int? grade, CancellationToken cancellationToken) =>
-        (await repository.SearchEntriesAsync(candidateId, name, stack, dateFrom, dateTo, grade, cancellationToken))
+        int? grade, int reviewerAccountId, bool isAdmin, CancellationToken cancellationToken) =>
+        (await repository.SearchEntriesAsync(
+            candidateId, name, stack, dateFrom, dateTo, grade, isAdmin ? null : reviewerAccountId, cancellationToken))
         .Select(ToResponse).ToArray();
 
     public async Task<ServiceResult<CandidateWorkEntryResponse>> ReviewAsync(
-        int entryId, ReviewCandidateWorkEntryRequest request, CancellationToken cancellationToken)
+        int reviewerAccountId,
+        bool isAdmin,
+        int entryId,
+        ReviewCandidateWorkEntryRequest request,
+        CancellationToken cancellationToken)
     {
         var entry = await repository.GetEntryAsync(entryId, cancellationToken);
         if (entry is null) return ServiceResult<CandidateWorkEntryResponse>.NotFound();
-        entry.Grade = request.Grade;
-        entry.AdminFeedback = request.AdminFeedback?.Trim();
-        entry.ReviewedAtUtc = DateTime.UtcNow;
-        await repository.SaveChangesAsync(cancellationToken);
-        return ServiceResult<CandidateWorkEntryResponse>.Success(ToResponse(entry));
+        var profile = entry.CandidateProfile
+            ?? throw new InvalidOperationException("The candidate profile could not be reloaded for review.");
+        if (!isAdmin && profile.CreatorEmployeeAccountId != reviewerAccountId)
+        {
+            return ServiceResult<CandidateWorkEntryResponse>.NotFound();
+        }
+
+        var feedback = request.AdminFeedback?.Trim();
+        var saved = await repository.TrySaveReviewAsync(
+            entryId,
+            reviewerAccountId,
+            request.Grade,
+            feedback,
+            DateTime.UtcNow,
+            isAdmin ? null : reviewerAccountId,
+            cancellationToken);
+        if (!saved)
+        {
+            return ServiceResult<CandidateWorkEntryResponse>.Conflict("This work entry has already been reviewed.");
+        }
+
+        var reviewedEntry = await repository.GetEntryAsync(entryId, cancellationToken)
+            ?? throw new InvalidOperationException("The reviewed work entry could not be reloaded.");
+        await notificationService.NotifyReviewCompletedAsync(
+            profile.EmployeeAccountId,
+            reviewerAccountId,
+            reviewedEntry.Id,
+            reviewedEntry.Task,
+            reviewedEntry.Grade!.Value,
+            reviewedEntry.AdminFeedback,
+            cancellationToken);
+        return ServiceResult<CandidateWorkEntryResponse>.Success(ToResponse(reviewedEntry));
     }
 
     private static void ApplyCandidateUpdate(CandidateWorkEntry entry, CandidateWorkEntryRequest request)
@@ -106,5 +160,9 @@ public sealed class WorkTrackingService(IWorkTrackingRepository repository) : IW
         entry.Grade,
         entry.AdminFeedback,
         entry.SubmittedAtUtc,
-        entry.ReviewedAtUtc);
+        entry.ReviewedAtUtc,
+        entry.ReviewedByEmployeeAccountId,
+        entry.ReviewedByEmployeeAccount?.DisplayName,
+        entry.CandidateProfile?.CreatorEmployeeAccountId,
+        entry.CandidateProfile?.CreatorEmployeeAccount?.DisplayName);
 }

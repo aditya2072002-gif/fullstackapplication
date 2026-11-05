@@ -15,8 +15,12 @@ public interface IWorkTrackingService
 
     Task<IReadOnlyList<CandidateWorkEntryResponse>> SearchAsync(
         int? candidateId, string? name, string? stack, DateOnly? dateFrom, DateOnly? dateTo,
-        int? grade, CancellationToken cancellationToken);
+        int? grade, int reviewerAccountId, bool isAdmin, CancellationToken cancellationToken);
 
     Task<ServiceResult<CandidateWorkEntryResponse>> ReviewAsync(
-        int entryId, ReviewCandidateWorkEntryRequest request, CancellationToken cancellationToken);
+        int reviewerAccountId,
+        bool isAdmin,
+        int entryId,
+        ReviewCandidateWorkEntryRequest request,
+        CancellationToken cancellationToken);
 }
