@@ -17,6 +17,15 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+        var portValue = builder.Configuration["PORT"];
+        var port = 10000;
+        if (portValue is not null && (!int.TryParse(portValue, out port) || port is < 1 or > 65535))
+        {
+            throw new InvalidOperationException("PORT must be a valid TCP port between 1 and 65535.");
+        }
+
+        builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -48,10 +57,18 @@ public class Program
             throw new InvalidOperationException("Jwt:LifetimeMinutes must be greater than zero.");
         }
 
-        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
-        if (allowedOrigins is null || allowedOrigins.Length == 0 || allowedOrigins.Any(string.IsNullOrWhiteSpace))
+        var corsOriginsSetting = builder.Configuration["CORS_ALLOWED_ORIGINS"];
+        if (builder.Environment.IsProduction() && corsOriginsSetting is null)
         {
-            throw new InvalidOperationException("Configure at least one valid origin in Cors:AllowedOrigins.");
+            throw new InvalidOperationException("Configure CORS_ALLOWED_ORIGINS with the exact frontend origin(s).");
+        }
+
+        var allowedOrigins = corsOriginsSetting is null
+            ? builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>()
+            : corsOriginsSetting.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (allowedOrigins.Length == 0 || allowedOrigins.Any(string.IsNullOrWhiteSpace))
+        {
+            throw new InvalidOperationException("Configure at least one valid origin in CORS_ALLOWED_ORIGINS.");
         }
 
         builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
@@ -131,7 +148,7 @@ public class Program
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            if (dbContext.Database.IsRelational())
+            if (dbContext.Database.IsRelational() && app.Environment.IsDevelopment())
             {
                 await dbContext.Database.MigrateAsync();
             }
@@ -155,7 +172,11 @@ public class Program
             app.UseSwaggerUI(options => options.SwaggerEndpoint("/swagger/v1/swagger.json", "Fullstack Application API v1"));
         }
 
-        app.UseHttpsRedirection();
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseHttpsRedirection();
+        }
+
         app.UseCors("Frontend");
         app.UseAuthentication();
         app.UseAuthorization();

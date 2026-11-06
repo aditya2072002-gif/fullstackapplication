@@ -1,3 +1,5 @@
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '');
+
 export class ApiError extends Error {
     constructor(message, status) {
         super(message);
@@ -12,7 +14,8 @@ export async function apiRequest(url, { token, responseType = 'json', ...options
         headers.set('Authorization', `Bearer ${token}`);
     }
 
-    const response = await fetch(url, { ...options, headers });
+    const requestUrl = apiBaseUrl ? new URL(url, `${apiBaseUrl}/`).toString() : url;
+    const response = await fetch(requestUrl, { ...options, headers });
     if (!response.ok) {
         const body = await response.text();
         let message = `Request failed (HTTP ${response.status}).`;
