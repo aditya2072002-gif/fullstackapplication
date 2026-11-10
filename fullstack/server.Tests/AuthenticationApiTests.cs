@@ -368,6 +368,13 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         using var employeeJson = JsonDocument.Parse(await employeeResponse.Content.ReadAsStringAsync());
         Assert.Equal("Employee", employeeJson.RootElement.GetProperty("role").GetString());
         Assert.Equal("Engineering", employeeJson.RootElement.GetProperty("department").GetString());
+        Assert.Equal(JsonValueKind.Null, employeeJson.RootElement.GetProperty("roleDefinitionId").ValueKind);
+        var employeeId = employeeJson.RootElement.GetProperty("id").GetInt32();
+        var roles = await _client.GetFromJsonAsync<JsonElement>("/api/roles");
+        var mentorRoleId = roles.EnumerateArray().Single(role => role.GetProperty("name").GetString() == "Mentor").GetProperty("id").GetInt32();
+        var assignMentorRole = await _client.PutAsJsonAsync(
+            $"/api/roles/employees/{employeeId}", new { roleDefinitionId = mentorRoleId });
+        Assert.Equal(HttpStatusCode.NoContent, assignMentorRole.StatusCode);
 
         var employeeToken = await LoginAndGetTokenAsync("mentor-test", "MentorInitial123!");
         using var employeeLogin = JsonDocument.Parse(await (await _client.PostAsJsonAsync("/api/auth/login", new
@@ -504,6 +511,14 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
             stack = ".NET"
         });
         Assert.Equal(HttpStatusCode.Created, employeeResponse.StatusCode);
+        using var employeeJson = JsonDocument.Parse(await employeeResponse.Content.ReadAsStringAsync());
+        Assert.Equal(JsonValueKind.Null, employeeJson.RootElement.GetProperty("roleDefinitionId").ValueKind);
+        var employeeId = employeeJson.RootElement.GetProperty("id").GetInt32();
+        var roles = await _client.GetFromJsonAsync<JsonElement>("/api/roles");
+        var mentorRoleId = roles.EnumerateArray().Single(role => role.GetProperty("name").GetString() == "Mentor").GetProperty("id").GetInt32();
+        var assignMentorRole = await _client.PutAsJsonAsync(
+            $"/api/roles/employees/{employeeId}", new { roleDefinitionId = mentorRoleId });
+        Assert.Equal(HttpStatusCode.NoContent, assignMentorRole.StatusCode);
         var employeeToken = await LoginAndGetTokenAsync("chat-mentor", "ChatMentorInitial123!");
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", employeeToken);
         var createCandidateResponse = await _client.PostAsJsonAsync("/api/employee/candidates", new
@@ -553,7 +568,7 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
                 ["params"] = new
                 {
                     name = "search_candidates",
-                    arguments = new { search = (string?)null, isActive = (bool?)null, candidateId = (int?)null }
+                    arguments = new { search = (string?)null, isActive = (bool?)null, candidateId = (int?)candidateId }
                 }
             })
         };
@@ -615,6 +630,176 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         Assert.Equal(1, approvedItems.GetArrayLength());
         Assert.Equal("Approved", approvedItems[0].GetProperty("status").GetString());
         Assert.Contains("Approved in chat scope test", approvedItems[0].GetProperty("details").GetProperty("Review comment").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ProfilePhotosPersistAndRestrictAccessToOwnerOrAdmins()
+    {
+        var candidateLogin = await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            username = "candidate",
+            password = "CandidateDemo123!"
+        });
+        candidateLogin.EnsureSuccessStatusCode();
+        using var candidateJson = JsonDocument.Parse(await candidateLogin.Content.ReadAsStringAsync());
+        var candidateId = candidateJson.RootElement.GetProperty("user").GetProperty("id").GetInt32();
+        var candidateToken = candidateJson.RootElement.GetProperty("accessToken").GetString();
+        var adminToken = await LoginAndGetTokenAsync("admin", "AdminDemo123!");
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var admins = await _client.GetFromJsonAsync<JsonElement>("/api/admins");
+        var adminId = admins[0].GetProperty("id").GetInt32();
+        var photoBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 };
+        using var form = new MultipartFormDataContent();
+        var photo = new ByteArrayContent(photoBytes);
+        photo.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        form.Add(photo, "photo", "profile.jpg");
+
+        var uploadResponse = await _client.PutAsync($"/api/profile-photos/{candidateId}", form);
+        Assert.Equal(HttpStatusCode.NoContent, uploadResponse.StatusCode);
+        var adminReadResponse = await _client.GetAsync($"/api/profile-photos/{candidateId}");
+        Assert.Equal(photoBytes, await adminReadResponse.Content.ReadAsByteArrayAsync());
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", candidateToken);
+        var ownerReadResponse = await _client.GetAsync($"/api/profile-photos/{candidateId}");
+        Assert.Equal(photoBytes, await ownerReadResponse.Content.ReadAsByteArrayAsync());
+        var otherAccountResponse = await _client.GetAsync($"/api/profile-photos/{adminId}");
+        Assert.Equal(HttpStatusCode.Forbidden, otherAccountResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task EmployeeRolesLimitDelegatedAccessToOwnedTeamAndPermissions()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var adminToken = await LoginAndGetTokenAsync("admin", "AdminDemo123!");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var managerRoleResponse = await _client.PostAsJsonAsync("/api/roles", new
+        {
+            name = $"Delegated manager {suffix}"
+        });
+        managerRoleResponse.EnsureSuccessStatusCode();
+        using var managerRoleJson = JsonDocument.Parse(await managerRoleResponse.Content.ReadAsStringAsync());
+        var managerRoleId = managerRoleJson.RootElement.GetProperty("id").GetInt32();
+        Assert.Empty(managerRoleJson.RootElement.GetProperty("permissions").EnumerateArray());
+        var managerPermissions = new[]
+        {
+            "Candidates.View", "Candidates.Create", "Candidates.Update", "Candidates.Deactivate", "Candidates.Delete",
+            "Reviews.Work", "Reviews.InterviewDecision", "Team.View", "Team.CreateEmployees",
+            "Team.ManageEmployees", "Team.CreateRoles", "Team.GrantPermissions"
+        };
+        var updateManagerPermissions = await _client.PutAsJsonAsync(
+            $"/api/roles/{managerRoleId}/permissions", new { permissions = managerPermissions });
+        Assert.Equal(HttpStatusCode.NoContent, updateManagerPermissions.StatusCode);
+
+        var candidateOnlyRoleResponse = await _client.PostAsJsonAsync("/api/roles", new
+        {
+            name = $"Candidate creator {suffix}"
+        });
+        candidateOnlyRoleResponse.EnsureSuccessStatusCode();
+        using var candidateRoleJson = JsonDocument.Parse(await candidateOnlyRoleResponse.Content.ReadAsStringAsync());
+        var candidateRoleId = candidateRoleJson.RootElement.GetProperty("id").GetInt32();
+        var updateCandidatePermissions = await _client.PutAsJsonAsync(
+            $"/api/roles/{candidateRoleId}/permissions", new { permissions = new[] { "Candidates.View", "Candidates.Create" } });
+        Assert.Equal(HttpStatusCode.NoContent, updateCandidatePermissions.StatusCode);
+        var restrictedRoleResponse = await _client.PostAsJsonAsync("/api/roles", new
+        {
+            name = $"Restricted role {suffix}"
+        });
+        restrictedRoleResponse.EnsureSuccessStatusCode();
+        using var restrictedRoleJson = JsonDocument.Parse(await restrictedRoleResponse.Content.ReadAsStringAsync());
+        var restrictedRoleId = restrictedRoleJson.RootElement.GetProperty("id").GetInt32();
+        var updateRestrictedPermissions = await _client.PutAsJsonAsync(
+            $"/api/roles/{restrictedRoleId}/permissions", new { permissions = new[] { "Team.ManageRolePermissions" } });
+        Assert.Equal(HttpStatusCode.NoContent, updateRestrictedPermissions.StatusCode);
+
+        var managerName = $"permission-manager-{suffix}";
+        var createManager = await _client.PostAsJsonAsync("/api/admin/employees", new
+        {
+            username = managerName,
+            password = "PermissionManager123!",
+            displayName = "Permission Manager",
+            department = "Test",
+            stack = "Test"
+        });
+        Assert.Equal(HttpStatusCode.Created, createManager.StatusCode);
+        using var createdManager = JsonDocument.Parse(await createManager.Content.ReadAsStringAsync());
+        var managerId = createdManager.RootElement.GetProperty("id").GetInt32();
+        Assert.Equal(JsonValueKind.Null, createdManager.RootElement.GetProperty("roleDefinitionId").ValueKind);
+        var assignManagerRole = await _client.PutAsJsonAsync(
+            $"/api/roles/employees/{managerId}", new { roleDefinitionId = managerRoleId });
+        Assert.Equal(HttpStatusCode.NoContent, assignManagerRole.StatusCode);
+
+        var managerToken = await LoginAndGetTokenAsync(managerName, "PermissionManager123!");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
+        var deniedRolePermissionChange = await _client.PutAsJsonAsync(
+            $"/api/roles/{candidateRoleId}/permissions", new { permissions = Array.Empty<string>() });
+        Assert.Equal(HttpStatusCode.Forbidden, deniedRolePermissionChange.StatusCode);
+        var childName = $"permission-child-{suffix}";
+        var createChild = await _client.PostAsJsonAsync("/api/employee/managed-employees", new
+        {
+            username = childName,
+            password = "PermissionChild123!",
+            displayName = "Permission Child",
+            department = "Test",
+            stack = "Test"
+        });
+        Assert.Equal(HttpStatusCode.Created, createChild.StatusCode);
+        using var childJson = JsonDocument.Parse(await createChild.Content.ReadAsStringAsync());
+        var childId = childJson.RootElement.GetProperty("id").GetInt32();
+        Assert.Equal(JsonValueKind.Null, childJson.RootElement.GetProperty("roleDefinitionId").ValueKind);
+        var deniedChildRole = await _client.PutAsJsonAsync(
+            $"/api/roles/employees/{childId}", new { roleDefinitionId = restrictedRoleId });
+        Assert.Equal(HttpStatusCode.Forbidden, deniedChildRole.StatusCode);
+        var assignChildRole = await _client.PutAsJsonAsync(
+            $"/api/roles/employees/{childId}", new { roleDefinitionId = candidateRoleId });
+        Assert.Equal(HttpStatusCode.NoContent, assignChildRole.StatusCode);
+
+        var managerSummary = await _client.GetFromJsonAsync<JsonElement>("/api/employee/managed-employees/summary");
+        Assert.Equal(1, managerSummary.GetProperty("activeEmployees").GetInt32());
+        Assert.Equal(0, managerSummary.GetProperty("inactiveEmployees").GetInt32());
+
+        var childToken = await LoginAndGetTokenAsync(childName, "PermissionChild123!");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", childToken);
+        var createCandidate = await _client.PostAsJsonAsync("/api/employee/candidates", new
+        {
+            username = $"permission-candidate-{suffix}",
+            password = "PermissionCandidate123!",
+            firstName = "Scoped",
+            lastName = "Candidate",
+            email = $"scoped-{suffix}@example.com",
+            phoneNumber = "5550102030",
+            stack = "Test"
+        });
+        Assert.Equal(HttpStatusCode.Created, createCandidate.StatusCode);
+        var forbiddenEmployeeCreation = await _client.PostAsJsonAsync("/api/employee/managed-employees", new
+        {
+            username = $"unpermitted-child-{suffix}",
+            password = "UnpermittedChild123!",
+            displayName = "Unpermitted Child",
+            department = "Test",
+            stack = "Test"
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, forbiddenEmployeeCreation.StatusCode);
+
+        using var candidateJson = JsonDocument.Parse(await createCandidate.Content.ReadAsStringAsync());
+        var candidateId = candidateJson.RootElement.GetProperty("id").GetInt32();
+        var forbiddenUpdate = await _client.PutAsJsonAsync($"/api/employee/candidates/{candidateId}", new
+        {
+            firstName = "Changed", lastName = "Candidate", email = $"changed-{suffix}@example.com",
+            phoneNumber = "5550102030", stack = "Test"
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, forbiddenUpdate.StatusCode);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", managerToken);
+        var deactivateChild = await _client.PatchAsJsonAsync($"/api/employee/managed-employees/{childId}/status", new { isActive = false });
+        Assert.Equal(HttpStatusCode.NoContent, deactivateChild.StatusCode);
+        var inactiveSummary = await _client.GetFromJsonAsync<JsonElement>("/api/employee/managed-employees/summary");
+        Assert.Equal(0, inactiveSummary.GetProperty("activeEmployees").GetInt32());
+        Assert.Equal(1, inactiveSummary.GetProperty("inactiveEmployees").GetInt32());
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", childToken);
+        var inactiveRequest = await _client.GetAsync("/api/roles/permissions");
+        Assert.Equal(HttpStatusCode.Unauthorized, inactiveRequest.StatusCode);
     }
 
     private static MultipartFormDataContent CreateCandidateUpdateForm(bool isActive, string? phoneNumber = "555-0101")

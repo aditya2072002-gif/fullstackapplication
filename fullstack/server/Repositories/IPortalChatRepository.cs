@@ -4,7 +4,7 @@ namespace fullstackapplication.Server.Repositories;
 
 public interface IPortalChatRepository
 {
-    Task<int> CountEmployeesAsync(string? search, bool? isActive, CancellationToken cancellationToken);
+    Task<int> CountEmployeesAsync(string? search, bool? isActive, int? managerEmployeeId, CancellationToken cancellationToken);
 
     Task<int> CountCandidatesAsync(
         string? search, bool? isActive, int? candidateId, int? ownerEmployeeId,
@@ -15,7 +15,7 @@ public interface IPortalChatRepository
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<PortalChatEmployeeDto>> SearchEmployeesAsync(
-        string? search, bool? isActive, int limit, CancellationToken cancellationToken);
+        string? search, bool? isActive, int? managerEmployeeId, int limit, CancellationToken cancellationToken);
 
     Task<IReadOnlyList<PortalChatCandidateDto>> SearchCandidatesAsync(
         string? search, bool? isActive, int? candidateId, int? ownerEmployeeId,

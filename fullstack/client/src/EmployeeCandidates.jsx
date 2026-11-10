@@ -10,7 +10,7 @@ import { PortalIcon } from './PortalIcon.jsx';
 
 const initialValues = { username: '', password: '', firstName: '', lastName: '', email: '', phoneNumber: '', stack: '' };
 
-export function EmployeeCandidates({ session }) {
+export function EmployeeCandidates({ session, permissions = [] }) {
     const [candidates, setCandidates] = useState([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -18,6 +18,10 @@ export function EmployeeCandidates({ session }) {
     const [editingCandidate, setEditingCandidate] = useState(null);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    const canCreate = permissions.includes('Candidates.Create');
+    const canUpdate = permissions.includes('Candidates.Update');
+    const canDeactivate = permissions.includes('Candidates.Deactivate');
+    const canDelete = permissions.includes('Candidates.Delete');
 
     const loadCandidates = useCallback(async (signal) => {
         try {
@@ -58,6 +62,18 @@ export function EmployeeCandidates({ session }) {
         }
     }
 
+    async function deleteCandidate(candidate) {
+        if (!window.confirm(`Permanently delete ${candidate.firstName} ${candidate.lastName}?`)) return;
+        setError('');
+        try {
+            await apiRequest(`/api/employee/candidates/${candidate.id}`, { token: session.accessToken, method: 'DELETE' });
+            setNotice('Inactive candidate profile deleted.');
+            await loadCandidates();
+        } catch (requestError) {
+            setError(requestError.message || 'Could not delete the candidate.');
+        }
+    }
+
     async function toggleCandidateStatus(candidate) {
         setError('');
         try {
@@ -79,7 +95,7 @@ export function EmployeeCandidates({ session }) {
             <Card elevation={0} sx={{ background: theme => `linear-gradient(120deg, ${theme.palette.info.main}12, ${theme.palette.secondary.main}16)`, border: '1px solid', borderColor: 'divider', transition: 'transform .2s, box-shadow .2s', '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 } }}>
                 <CardContent><Stack alignItems={{ sm: 'center' }} direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                     <Box sx={{ flexGrow: 1 }}><Typography component="h2" variant="h5">My candidates</Typography><Typography color="text.secondary" sx={{ mt: 0.75 }}>You can view and mentor only candidates created by your employee account.</Typography></Box>
-                    <Button onClick={() => { setEditingCandidate(null); setError(''); setDialogOpen(true); }} startIcon={<PortalIcon name="add" />} variant="contained">Add candidate</Button>
+                    {canCreate && <Button onClick={() => { setEditingCandidate(null); setError(''); setDialogOpen(true); }} startIcon={<PortalIcon name="add" />} variant="contained">Add candidate</Button>}
                 </Stack></CardContent>
             </Card>
             {error && <Alert severity="error">{error}</Alert>}
@@ -90,7 +106,11 @@ export function EmployeeCandidates({ session }) {
                 ) : <TableContainer><Table size="small" aria-label="My candidates"><TableHead><TableRow><TableCell>Name</TableCell><TableCell>Username</TableCell><TableCell>Email</TableCell><TableCell>Phone</TableCell><TableCell>Stack</TableCell><TableCell>Status</TableCell><TableCell>Actions</TableCell></TableRow></TableHead>
                     <TableBody>{candidates.map(candidate => <TableRow hover key={candidate.id}>
                         <TableCell>{candidate.firstName} {candidate.lastName}</TableCell><TableCell>{candidate.username}</TableCell><TableCell>{candidate.email}</TableCell><TableCell>{candidate.phoneNumber || '—'}</TableCell><TableCell>{candidate.stack || '—'}</TableCell><TableCell>{candidate.isActive ? 'Active' : 'Inactive'}</TableCell>
-                        <TableCell><Stack direction="row" spacing={1}><Button onClick={() => { setEditingCandidate(candidate); setError(''); setDialogOpen(true); }} size="small">Edit</Button><Button color={candidate.isActive ? 'warning' : 'success'} onClick={() => void toggleCandidateStatus(candidate)} size="small">{candidate.isActive ? 'Deactivate' : 'Activate'}</Button></Stack></TableCell>
+                        <TableCell><Stack direction="row" spacing={1}>
+                            {canUpdate && <Button onClick={() => { setEditingCandidate(candidate); setError(''); setDialogOpen(true); }} size="small">Edit</Button>}
+                            {canDeactivate && <Button color={candidate.isActive ? 'warning' : 'success'} onClick={() => void toggleCandidateStatus(candidate)} size="small">{candidate.isActive ? 'Deactivate' : 'Activate'}</Button>}
+                            {canDelete && !candidate.isActive && <Button color="error" onClick={() => void deleteCandidate(candidate)} size="small">Delete</Button>}
+                        </Stack></TableCell>
                     </TableRow>)}</TableBody></Table></TableContainer>}
             </CardContent></Card>
             <Dialog fullWidth maxWidth="sm" onClose={() => !saving && setDialogOpen(false)} open={dialogOpen}>

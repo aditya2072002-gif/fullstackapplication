@@ -35,16 +35,27 @@ The list endpoints require an Admin JWT. Candidate accounts can authenticate, bu
 
 ### Employee account management
 
-These routes require an Admin JWT. An Admin can list employee accounts and create a new Employee with a username, password, display name, department, and stack. Passwords are hashed before persistence; the response contains an employee summary and never includes a password or hash.
+`GET /api/admin/employees` is Admin-only. Admins can create, assign roles to, and change status for employee accounts. Employees with the relevant team permissions can create and manage only the employees they directly created. Passwords are hashed before persistence; responses never include a password or hash. See [Employee access control and delegated management](../docs/EMPLOYEE-ACCESS-CONTROL-PLAN.md) for the permission catalog and implementation details.
 
-| Method and route | Purpose |
-|---|---|
-| `GET /api/admin/employees` | List employee accounts. |
-| `POST /api/admin/employees` | Create an Employee account; returns `201`, `400` for invalid input, or `409` if the username is already in use. |
+| Method and route | Access | Purpose |
+|---|---|---|
+| `GET /api/admin/employees` | Admin | List employee accounts. |
+| `POST /api/admin/employees` | Admin or employee with `Team.CreateEmployees` | Create an Employee account without assigning a permission role. |
+| `PATCH /api/admin/employees/{employeeId}/status` | Admin or employee with `Team.ManageEmployees` | Activate or deactivate an employee; employee managers are limited to direct reports. |
+| `GET /api/employee/managed-employees` | Employee with team-management access | List only direct reports, with assigned role and status. |
+| `GET /api/employee/managed-employees/summary` | Employee with `Team.View` | Return active/inactive direct-report counts. |
+| `POST /api/employee/managed-employees` | Employee with `Team.CreateEmployees` | Create a direct report without assigning a permission role. |
+| `PATCH /api/employee/managed-employees/{employeeId}/status` | Employee with `Team.ManageEmployees` | Change status for a direct report. |
+
+### Employee permission roles
+
+The base Employee role remains fixed for authentication. `EmployeeRoleDefinitions` and `EmployeeRolePermissions` store custom permission templates, and each employee may be assigned one template. Role creation, permission management, and employee assignment are separate features with separate capabilities: `Team.CreateRoles` allows `POST /api/roles` to create an empty role; `Team.ManageRolePermissions` allows `PUT /api/roles/{roleId}/permissions` to grant or remove permissions on that specific role; and `Team.GrantPermissions` allows `PUT /api/roles/employees/{employeeId}` to assign or clear a role for an existing direct report. `GET /api/roles/permissions` returns the current user's capabilities and only exposes the permission catalog to callers with `Team.ManageRolePermissions`; `GET /api/roles` lists roles the caller may assign or manage. Admins can grant any catalog permission. Employees can only add permissions they already hold, assign roles whose permissions they hold, and manage only their direct reports. Employee creation never assigns a role. An employee's access is checked from the database, so role changes take effect on subsequent requests without changing the JWT.
+
+The `AddEmployeeAccessRoles` migration assigns existing employees the built-in Mentor role with their legacy candidate-creation and review capabilities. Newly created employees have no assigned permissions until an authorized user assigns a role after creation. Deactivated Employee accounts are rejected during JWT validation on subsequent API, MCP, and SignalR requests.
 
 ### Employee candidate management
 
-These routes require an Employee JWT. Employees can create candidates and list, view, update, or change the status of only candidates they created. Candidate ownership is checked by the API and repository; attempts to access another Employee's candidate return `404`.
+These routes require an Employee JWT and the matching permission. `Candidates.View` (or `Reviews.Work` for review workflows) allows listing and viewing only candidates created by the caller. `Candidates.Create`, `Candidates.Update`, and `Candidates.Deactivate` independently gate those operations; `Candidates.Delete` permits deletion only for an owned inactive candidate. Candidate ownership is enforced by the service/repository even when a caller has the permission.
 
 | Method and route | Purpose |
 |---|---|
@@ -53,8 +64,9 @@ These routes require an Employee JWT. Employees can create candidates and list, 
 | `POST /api/employee/candidates` | Create a Candidate assigned to the signed-in Employee. |
 | `PUT /api/employee/candidates/{candidateId}` | Update an owned candidate's profile. |
 | `PATCH /api/employee/candidates/{candidateId}/status` | Activate or deactivate an owned candidate. |
+| `DELETE /api/employee/candidates/{candidateId}` | Delete an owned inactive candidate when `Candidates.Delete` is granted. |
 
-Admins manage the broader candidate directory through `/api/admin/candidates`. Admins and Employees can search `/api/admin/work-tracking`; Employees see only candidates they created. Task review and interview decisions are detailed below.
+Admins manage the broader candidate directory through `/api/admin/candidates`. Admins and Employees with `Reviews.Work` can search `/api/admin/work-tracking`; Employees see only candidates they created. Task review requires `Reviews.Work`, and interview decisions require `Reviews.InterviewDecision`.
 
 ### Portal chat and MCP lookup
 
@@ -64,19 +76,19 @@ The API also exposes an authenticated, stateless Streamable HTTP MCP endpoint at
 
 | MCP tool | Access and results |
 |---|---|
-| `search_employees` | Admin only; returns matching counts. Employee records are included only when a specific search term identifies exactly one match. |
-| `search_candidates` | Admin sees all; Employee sees only candidates they created; Candidate sees only their own profile. Returns matching counts; records are included for a specific candidate ID or a search term identifying exactly one candidate. |
-| `search_work_reviews` | Admin sees all; Employee sees entries for owned candidates; Candidate sees only their own entries. Without a candidate ID, returns only a matching count; a specific candidate ID returns matching entries. |
+| `search_employees` | Admin sees all; employees with `Team.View` see only direct reports. Returns matching counts; employee records are included only when a specific search term identifies exactly one match. |
+| `search_candidates` | Admin sees all; Employee requires `Candidates.View` and sees only candidates they created; Candidate sees only their own profile. Returns matching counts; records are included for a specific candidate ID or a search term identifying exactly one candidate. |
+| `search_work_reviews` | Admin sees all; Employee requires `Reviews.Work` and sees entries for owned candidates; Candidate sees only their own entries. Without a candidate ID, returns only a matching count; a specific candidate ID returns matching entries. |
 
-Both chat and MCP tools use injected services and repositories. Controllers only bind validated DTOs, call services, and map results; EF Core/SQL Server access stays in repositories. Caller ID and role come from the validated JWT, and arbitrary SQL or write operations are not exposed. API and MCP responses are marked `no-store`. No chat history or database migration is introduced.
+Both chat and MCP tools use injected services and repositories. Controllers only bind validated DTOs, call services, and map results; EF Core/SQL Server access stays in repositories. Caller ID, role, and current database-backed permissions determine access; arbitrary SQL or write operations are not exposed. API and MCP responses are marked `no-store`. No chat history is stored; employee-role persistence is introduced by the `AddEmployeeAccessRoles` migration.
 
 ### JWT authentication implementation
 
 1. `Controllers/AuthController.cs` exposes the public `POST /api/auth/login` endpoint.
 2. `Services/AuthService.cs` finds an active account, verifies its password hash, and delegates token creation after successful authentication.
 3. `Services/JwtTokenService.cs` signs a JWT with HMAC-SHA256. The token includes the account ID (`sub`), username (`unique_name`), role (`role`), issuer, audience, and expiry.
-4. `Program.cs` configures JWT bearer authentication to validate the issuer, audience, signing key, and token lifetime, then enables role-based authorization for controllers.
-5. Authenticated API requests provide the token in the `Authorization: Bearer <token>` header. Controllers derive the caller's account identity from validated claims; role attributes and ownership filters enforce access.
+4. `Program.cs` configures JWT bearer authentication to validate the issuer, audience, signing key, and token lifetime, rejects inactive Employee accounts, then enables role-based authorization for controllers.
+5. Authenticated API requests provide the token in the `Authorization: Bearer <token>` header. Controllers derive the caller's account identity from validated claims; role attributes, database-backed permission checks, and ownership filters enforce access.
 
 The signing key must be at least 32 bytes. Production requires `Jwt__SigningKey` to be supplied through a secret store or environment configuration. Development can generate a process-local key when none is set, so tokens issued in that mode stop validating after an API restart. Tokens are access tokens; the current API does not provide a refresh-token endpoint.
 
@@ -92,6 +104,13 @@ The signing key must be at least 32 bytes. Production requires `Jwt__SigningKey`
 
 Resume uploads accept PDF or legacy DOC files up to 10 MB. The API validates the extension and file signature, stores resume bytes in SQL Server, and returns resume metadata only. Passwords and password hashes are never returned or included in candidate profile responses. Candidate management APIs require JWT authentication and the appropriate Admin or Candidate role.
 
+## Profile photo API
+
+- `GET /api/profile-photos/{employeeAccountId}` returns the account's profile photo, or `204 No Content` if no photo is saved.
+- `PUT /api/profile-photos/{employeeAccountId}` accepts a JPEG in the `photo` multipart form field, up to 5 MB, and saves it to the account.
+
+Both routes require a JWT. Admins may view and update any account photo; Employees and Candidates may access only their own. Photo bytes and content type are stored on the `EmployeeAccounts` row in SQL Server. Development applies the `AddProfilePhotos` migration at startup; Production requires the migration to be reviewed and applied using the documented migration process.
+
 ## Candidate work review and interview decision API
 
 New candidate accounts receive a UTC `CreatedAtUtc`. The profile response includes `workSubmissionEndsAtUtc`, `canSubmitWork`, and the interview-decision stage. Candidates may create or update pending work only during the first 30 days after account creation. The API returns `409 Conflict` after the window ends; work stays available for viewing and review. Reviewed work cannot be edited or deleted.
@@ -102,9 +121,9 @@ New candidate accounts receive a UTC `CreatedAtUtc`. The profile response includ
 | `POST /api/candidates/me/work-tracking` | Candidate | Submit work during the 30-day window; new entries are `Pending`. |
 | `PUT /api/candidates/me/work-tracking/{entryId}` | Candidate | Update a caller-owned pending entry during the window. |
 | `DELETE /api/candidates/me/work-tracking/{entryId}` | Candidate | Delete a caller-owned pending entry. Reviewed entries return `409`. |
-| `GET /api/admin/work-tracking` | Admin or Employee | Search by `candidateId`, `name`, `stack`, `dateFrom`, `dateTo`, and `status`. Employee results are restricted to their owned candidates. |
-| `PUT /api/admin/work-tracking/review` | Admin or Employee | Atomically approve or reject multiple pending entries for one candidate. |
-| `PUT /api/admin/candidates/{candidateId}/interview-decision` | Admin or Employee | Set the separate interview decision after day 30; Employee ownership is enforced. |
+| `GET /api/admin/work-tracking` | Admin or Employee with `Reviews.Work` | Search by `candidateId`, `name`, `stack`, `dateFrom`, `dateTo`, and `status`. Employee results are restricted to their owned candidates. |
+| `PUT /api/admin/work-tracking/review` | Admin or Employee with `Reviews.Work` | Atomically approve or reject multiple pending entries for one candidate. |
+| `PUT /api/admin/candidates/{candidateId}/interview-decision` | Admin or Employee with `Reviews.InterviewDecision` | Set the separate interview decision after day 30; Employee ownership is enforced. |
 
 Bulk review request:
 
@@ -211,6 +230,12 @@ Amazon RDS for Microsoft SQL Server is also compatible with the API's existing E
 
 Official references: [Amazon RDS for SQL Server](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_SQLServer.html), [RDS SQL Server connectivity](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_ConnectToMicrosoftSQLServerInstance.html), [RDS SQL Server SSL](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/SQLServer.Concepts.General.SSL.Using.html), and [Render outbound IP addresses](https://render.com/docs/outbound-ip-addresses).
 
-Do not place credentials in `appsettings.json` or `appsettings.Development.json` in the image. `appsettings.Development.json` is excluded by `.dockerignore`.
+Do not place credentials in `appsettings.json` or `appsettings.Development.json` in the image. `appsettings.Development.json` and local `.env` files are excluded by `.dockerignore`.
+
+### Temporary Docker + Cloudflare demo
+
+From the `fullstack` directory, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-demo.ps1`. If `.env` does not exist, the Windows helper creates it with cryptographically random values for `SQL_SA_PASSWORD`, `JWT_SIGNING_KEY`, `DEMO_ADMIN_PASSWORD`, and `DEMO_CANDIDATE_PASSWORD`; it never overwrites an existing `.env`. Do not commit or share `.env`. The helper starts the private SQL Server container, runs EF Core migrations through a one-shot migrator container, starts the Production API with explicitly enabled demo seeding, and creates a temporary Cloudflare Quick Tunnel. It captures the generated HTTPS origin and updates only `CORS_ALLOWED_ORIGINS` in `.env` before restarting the API. It prints the temporary public URL when ready; it never prints the generated secrets. The database is not published to the host. Demo credentials are randomly generated and stored only in `.env`; share them only with intended demo viewers.
+
+The tunnel URL is temporary and changes when the tunnel restarts. Stop the demo with `docker compose --env-file .env down` from `fullstack`; this leaves the SQL data volume intact. Remove demo data as well only when you intentionally want to permanently delete the database volume, using `docker compose --env-file .env down --volumes`.
 
 EF Core code-first migrations live under `Migrations`. Development applies committed migrations on startup; Production does not run migrations automatically. Before changing a production schema, review the migration operations and generate an idempotent SQL script with `dotnet ef migrations script --idempotent --project fullstack/server/fullstackapplication.Server.csproj`. Back up the database, verify its current migration state, and have an operator review and apply the SQL script manually. Use a migration credential with the required DDL permissions for this operation rather than granting those permissions to the runtime application login. Add future migrations from the server project with `dotnet ef migrations add <MigrationName>`.

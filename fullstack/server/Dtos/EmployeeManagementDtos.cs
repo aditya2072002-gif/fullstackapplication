@@ -27,7 +27,11 @@ public sealed record EmployeeResponseDto(
     string Department,
     string Stack,
     string Role,
-    bool IsActive);
+    bool IsActive,
+    int? CreatedByEmployeeAccountId = null,
+    int? RoleDefinitionId = null,
+    string? RoleDefinitionName = null,
+    IReadOnlyList<string>? Permissions = null);
 
 public sealed class UpdateEmployeeCandidateRequest
 {

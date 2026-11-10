@@ -40,6 +40,11 @@ public interface IAdminCandidateService
         UpdateEmployeeCandidateStatusRequest request,
         CancellationToken cancellationToken);
 
+    Task<ServiceResult<bool>> DeleteEmployeeCandidateAsync(
+        int employeeAccountId,
+        int candidateId,
+        CancellationToken cancellationToken);
+
     Task<ServiceResult<CandidateProfileResponse>> UpdateCandidateAsync(
         int id,
         UpdateCandidateRequest request,

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-    Avatar, Box, Button, Container, FormControlLabel, IconButton, Menu, MenuItem, Stack, Switch, Typography,
+    Box, Button, Container, FormControlLabel, IconButton, Menu, MenuItem, Stack, Switch, Typography,
 } from '@mui/material';
 import { PortalIcon } from './PortalIcon.jsx';
 import { ProfileAvatar } from './ProfileAvatar.jsx';
@@ -15,6 +15,7 @@ export function PortalShell({
     onMenuChange,
     onProfile,
     role,
+    permissions = [],
     session,
     title,
     children,
@@ -24,10 +25,12 @@ export function PortalShell({
     const sections = isAdmin
         ? [{ id: 'overview', label: 'Overview', icon: 'admin' }, { id: 'directory', label: 'Candidate list', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }, { id: 'employees', label: 'Employees', icon: 'employee' }]
         : role === 'Employee'
-            ? [{ id: 'candidates', label: 'My candidates', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }]
+            ? [
+                ...(permissions.includes('Candidates.View') ? [{ id: 'candidates', label: 'My candidates', icon: 'directory' }] : []),
+                ...(permissions.includes('Reviews.Work') ? [{ id: 'reviews', label: 'Work reviews', icon: 'review' }] : []),
+                ...(permissions.some(permission => ['Team.View', 'Team.CreateEmployees', 'Team.ManageEmployees', 'Team.CreateRoles', 'Team.GrantPermissions', 'Team.ManageRolePermissions'].includes(permission)) ? [{ id: 'employees', label: 'My team', icon: 'employee' }] : []),
+            ]
             : [{ id: 'profile', label: 'Candidate profile', icon: 'candidate' }, { id: 'work', label: 'Work tracking', icon: 'work' }];
-    const initials = (session.user.displayName || session.user.username || role).split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
-
     return (
         <Box className={`app-shell portal-shell${darkMode ? ' theme-dark' : ''}`}>
             <Container maxWidth={false}>
@@ -44,9 +47,7 @@ export function PortalShell({
                             <NotificationsInbox session={session} />
                             <Typography className="portal-signed-in" color="text.secondary">{session.user.displayName}</Typography>
                             <IconButton aria-label="Open profile menu" onClick={event => setProfileAnchor(event.currentTarget)}>
-                                {isAdmin
-                                    ? <ProfileAvatar id={session.user.id} name={session.user.displayName} role={role} size={40} username={session.user.username} />
-                                    : <Avatar className="profile-avatar">{initials}</Avatar>}
+                                <ProfileAvatar id={session.user.id} name={session.user.displayName} role={role} size={40} token={session.accessToken} username={session.user.username} />
                             </IconButton>
                         </Stack>
                     </Box>

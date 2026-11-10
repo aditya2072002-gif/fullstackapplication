@@ -86,6 +86,10 @@ public class Program
         builder.Services.AddScoped<ICandidateSelfRepository, CandidateSelfRepository>();
         builder.Services.AddScoped<IEmployeeDirectoryRepository, EmployeeDirectoryRepository>();
         builder.Services.AddScoped<IEmployeeManagementRepository, EmployeeManagementRepository>();
+        builder.Services.AddScoped<EmployeeAccessRepository>();
+        builder.Services.AddScoped<EmployeeAccessService>();
+        builder.Services.AddScoped<IPermissionService, PermissionService>();
+        builder.Services.AddScoped<ProfilePhotoRepository>();
         builder.Services.AddScoped<IPortalChatRepository, PortalChatRepository>();
         builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
         builder.Services.AddScoped<IWorkTrackingRepository, WorkTrackingRepository>();
@@ -164,12 +168,31 @@ public class Program
                         }
 
                         return Task.CompletedTask;
+                    },
+                    OnTokenValidated = async context =>
+                    {
+                        if (context.Principal?.IsInRole(EmployeeRoles.Employee) != true) return;
+                        var subject = context.Principal.FindFirst("sub")?.Value;
+                        if (!int.TryParse(subject, out var employeeId))
+                        {
+                            context.Fail("The employee account identity is invalid.");
+                            return;
+                        }
+
+                        var dbContext = context.HttpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                        var isActive = await dbContext.EmployeeAccounts.AsNoTracking()
+                            .AnyAsync(account => account.Id == employeeId
+                                && account.Role == EmployeeRoles.Employee && account.IsActive,
+                                context.HttpContext.RequestAborted);
+                        if (!isActive) context.Fail("The employee account is inactive.");
                     }
                 };
             });
         builder.Services.AddAuthorization();
 
         var app = builder.Build();
+        var seedDemoData = app.Environment.IsDevelopment()
+            || app.Configuration.GetValue<bool>("EnableDemoDataSeeding");
         await using (var scope = app.Services.CreateAsyncScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -178,7 +201,7 @@ public class Program
                 await dbContext.Database.MigrateAsync();
             }
 
-            if (app.Environment.IsDevelopment())
+            if (seedDemoData)
             {
                 await DevelopmentDataSeeder.SeedAsync(
                     dbContext,

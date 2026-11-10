@@ -4,4 +4,7 @@
 **/node_modules/
 **/dist/
 **/appsettings.Development.json
+.env
+.env.*
+!.env.example
 .vs/

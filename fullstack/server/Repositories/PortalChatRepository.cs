@@ -7,8 +7,8 @@ namespace fullstackapplication.Server.Repositories;
 
 public sealed class PortalChatRepository(ApplicationDbContext dbContext) : IPortalChatRepository
 {
-    public Task<int> CountEmployeesAsync(string? search, bool? isActive, CancellationToken cancellationToken) =>
-        QueryEmployees(search, isActive).CountAsync(cancellationToken);
+    public Task<int> CountEmployeesAsync(string? search, bool? isActive, int? managerEmployeeId, CancellationToken cancellationToken) =>
+        QueryEmployees(search, isActive, managerEmployeeId).CountAsync(cancellationToken);
 
     public Task<int> CountCandidatesAsync(
         string? search, bool? isActive, int? candidateId, int? ownerEmployeeId,
@@ -21,9 +21,9 @@ public sealed class PortalChatRepository(ApplicationDbContext dbContext) : IPort
         QueryWorkEntries(status, candidateId, ownerEmployeeId, candidateAccountId).CountAsync(cancellationToken);
 
     public async Task<IReadOnlyList<PortalChatEmployeeDto>> SearchEmployeesAsync(
-        string? search, bool? isActive, int limit, CancellationToken cancellationToken)
+        string? search, bool? isActive, int? managerEmployeeId, int limit, CancellationToken cancellationToken)
     {
-        var query = QueryEmployees(search, isActive);
+        var query = QueryEmployees(search, isActive, managerEmployeeId);
 
         return await query.OrderBy(account => account.DisplayName)
             .Select(account => new PortalChatEmployeeDto(
@@ -86,11 +86,12 @@ public sealed class PortalChatRepository(ApplicationDbContext dbContext) : IPort
             .ToListAsync(cancellationToken);
     }
 
-    private IQueryable<EmployeeAccount> QueryEmployees(string? search, bool? isActive)
+    private IQueryable<EmployeeAccount> QueryEmployees(string? search, bool? isActive, int? managerEmployeeId)
     {
         var query = dbContext.EmployeeAccounts.AsNoTracking()
             .Where(account => account.Role == EmployeeRoles.Employee);
         if (isActive.HasValue) query = query.Where(account => account.IsActive == isActive.Value);
+        if (managerEmployeeId.HasValue) query = query.Where(account => account.CreatedByEmployeeAccountId == managerEmployeeId.Value);
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();

@@ -24,5 +24,17 @@ public sealed class EmployeeAccount
 
     public DateTime? InactiveAtUtc { get; set; }
 
+    public int? CreatedByEmployeeAccountId { get; set; }
+
+    public int? RoleDefinitionId { get; set; }
+
+    public EmployeeAccount? CreatedByEmployeeAccount { get; set; }
+
+    public EmployeeRoleDefinition? RoleDefinition { get; set; }
+
+    public byte[]? ProfilePhotoContent { get; set; }
+
+    public string? ProfilePhotoContentType { get; set; }
+
     public CandidateProfile? CandidateProfile { get; set; }
 }
