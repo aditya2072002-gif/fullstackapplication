@@ -12,6 +12,7 @@ public static class EmployeePermissions
     public const string ViewTeam = "Team.View";
     public const string CreateEmployees = "Team.CreateEmployees";
     public const string ManageEmployees = "Team.ManageEmployees";
+    public const string DeleteEmployees = "Team.DeleteEmployees";
     public const string CreateRoles = "Team.CreateRoles";
     public const string GrantPermissions = "Team.GrantPermissions";
     public const string ManageRolePermissions = "Team.ManageRolePermissions";
@@ -28,6 +29,7 @@ public static class EmployeePermissions
         [ViewTeam] = "View directly managed employees",
         [CreateEmployees] = "Create directly managed employees",
         [ManageEmployees] = "Activate or deactivate directly managed employees",
+        [DeleteEmployees] = "Delete inactive directly managed employees",
         [CreateRoles] = "Create permission roles",
         [GrantPermissions] = "Assign roles to directly managed employees",
         [ManageRolePermissions] = "Grant permissions to roles"

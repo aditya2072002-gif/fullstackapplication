@@ -24,7 +24,7 @@ export function EmployeePortal({ activeMenu, onMenuChange, session, onLogout, da
         const allowed = [
             ...(permissions.includes('Candidates.View') ? ['candidates'] : []),
             ...(permissions.includes('Reviews.Work') ? ['reviews'] : []),
-            ...(permissions.some(permission => ['Team.View', 'Team.CreateEmployees', 'Team.ManageEmployees', 'Team.CreateRoles', 'Team.GrantPermissions', 'Team.ManageRolePermissions'].includes(permission)) ? ['employees'] : []),
+            ...(permissions.some(permission => ['Team.View', 'Team.CreateEmployees', 'Team.ManageEmployees', 'Team.DeleteEmployees', 'Team.CreateRoles', 'Team.GrantPermissions', 'Team.ManageRolePermissions'].includes(permission)) ? ['employees'] : []),
         ];
         if (!allowed.includes(activeMenu) && allowed.length) onMenuChange(allowed[0]);
     }, [activeMenu, onMenuChange, permissions]);
@@ -46,7 +46,7 @@ export function EmployeePortal({ activeMenu, onMenuChange, session, onLogout, da
             {!permissions && !permissionError && <Box className="loading-state"><CircularProgress size={26} /><Typography>Loading access permissions...</Typography></Box>}
             {permissions && activeMenu === 'candidates' && permissions.includes('Candidates.View') && <EmployeeCandidates permissions={permissions} session={session} />}
             {permissions && activeMenu === 'reviews' && permissions.includes('Reviews.Work') && <WorkReviews permissions={permissions} session={session} visible />}
-            {permissions && activeMenu === 'employees' && permissions.some(permission => ['Team.View', 'Team.CreateEmployees', 'Team.ManageEmployees', 'Team.CreateRoles', 'Team.GrantPermissions', 'Team.ManageRolePermissions'].includes(permission)) && <EmployeeManagement managedByEmployee session={session} />}
+            {permissions && activeMenu === 'employees' && permissions.some(permission => ['Team.View', 'Team.CreateEmployees', 'Team.ManageEmployees', 'Team.DeleteEmployees', 'Team.CreateRoles', 'Team.GrantPermissions', 'Team.ManageRolePermissions'].includes(permission)) && <EmployeeManagement managedByEmployee session={session} />}
             {permissions && permissions.length === 0 && <Alert severity="info">Your employee account has no assigned permissions. Contact your administrator.</Alert>}
             <Dialog onClose={() => setProfileOpen(false)} open={profileOpen}>
                 <DialogTitle>Employee profile</DialogTitle>

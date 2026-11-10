@@ -31,6 +31,12 @@ public static class DevelopmentDataSeeder
         foreach (var demoAccount in demoAccounts)
         {
             var normalizedUsername = demoAccount.Username.ToUpperInvariant();
+            var password = configuration[demoAccount.PasswordKey];
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                throw new InvalidOperationException($"Configure {demoAccount.PasswordKey} to seed development demo accounts.");
+            }
+
             var account = await dbContext.EmployeeAccounts
                 .Include(employee => employee.CandidateProfile)
                 .SingleOrDefaultAsync(
@@ -39,22 +45,23 @@ public static class DevelopmentDataSeeder
 
             if (account is null)
             {
-                var password = configuration[demoAccount.PasswordKey];
-                if (string.IsNullOrWhiteSpace(password))
-                {
-                    throw new InvalidOperationException($"Configure {demoAccount.PasswordKey} to seed development demo accounts.");
-                }
-
                 account = new EmployeeAccount
                 {
                     Username = demoAccount.Username,
-                    NormalizedUsername = normalizedUsername,
-                    DisplayName = demoAccount.DisplayName,
-                    Role = demoAccount.Role,
-                    IsActive = true
+                    NormalizedUsername = normalizedUsername
                 };
-                account.PasswordHash = passwordHasher.HashPassword(account, password);
                 dbContext.EmployeeAccounts.Add(account);
+            }
+
+            account.DisplayName = demoAccount.DisplayName;
+            account.Role = demoAccount.Role;
+            account.IsActive = true;
+            account.InactiveAtUtc = null;
+
+            var passwordVerification = passwordHasher.VerifyHashedPassword(account, account.PasswordHash, password);
+            if (passwordVerification != PasswordVerificationResult.Success)
+            {
+                account.PasswordHash = passwordHasher.HashPassword(account, password);
             }
 
             if (demoAccount.Role == EmployeeRoles.Candidate && account.CandidateProfile is null)

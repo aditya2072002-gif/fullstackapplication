@@ -28,6 +28,23 @@ public sealed class AdminEmployeesController(
         return int.TryParse(subject, NumberStyles.None, CultureInfo.InvariantCulture, out var accountId) ? accountId : null;
     }
 
+    [HttpDelete("{employeeId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteEmployee(int employeeId, CancellationToken cancellationToken)
+    {
+        var result = await accessService.DeleteManagedEmployeeAsync(User, employeeId, cancellationToken);
+        return result.Kind switch
+        {
+            ServiceResultKind.Forbidden => Forbid(),
+            ServiceResultKind.NotFound => NotFound(),
+            ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
+            _ => NoContent()
+        };
+    }
+
     [HttpPatch("{employeeId:int}/status")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<IActionResult> UpdateStatus(

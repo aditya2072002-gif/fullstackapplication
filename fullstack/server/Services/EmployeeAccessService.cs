@@ -146,6 +146,7 @@ public sealed class EmployeeAccessService(EmployeeAccessRepository repository, I
         var canAccessTeam = await permissionService.HasAsync(caller, EmployeePermissions.ViewTeam, cancellationToken)
             || await permissionService.HasAsync(caller, EmployeePermissions.CreateEmployees, cancellationToken)
             || await permissionService.HasAsync(caller, EmployeePermissions.ManageEmployees, cancellationToken)
+            || await permissionService.HasAsync(caller, EmployeePermissions.DeleteEmployees, cancellationToken)
             || await permissionService.HasAsync(caller, EmployeePermissions.CreateRoles, cancellationToken)
             || await permissionService.HasAsync(caller, EmployeePermissions.GrantPermissions, cancellationToken)
             || await permissionService.HasAsync(caller, EmployeePermissions.ManageRolePermissions, cancellationToken);
@@ -180,6 +181,37 @@ public sealed class EmployeeAccessService(EmployeeAccessRepository repository, I
         if (employee is null) return ServiceResult<bool>.NotFound();
         employee.IsActive = isActive;
         employee.InactiveAtUtc = isActive ? null : DateTime.UtcNow;
+        await repository.SaveChangesAsync(cancellationToken);
+        return ServiceResult<bool>.Success(true);
+    }
+
+    public async Task<ServiceResult<bool>> DeleteManagedEmployeeAsync(
+        ClaimsPrincipal caller,
+        int employeeId,
+        CancellationToken cancellationToken)
+    {
+        if (!await permissionService.HasAsync(caller, EmployeePermissions.DeleteEmployees, cancellationToken))
+        {
+            return ServiceResult<bool>.Forbidden("You do not have permission to delete managed employees.");
+        }
+        if (!TryGetAccountId(caller, out var managerId))
+        {
+            return ServiceResult<bool>.Forbidden("The account identity is unavailable.");
+        }
+
+        var employee = await repository.GetManagedEmployeeAsync(
+            employeeId, managerId, caller.IsInRole(EmployeeRoles.Admin), cancellationToken);
+        if (employee is null) return ServiceResult<bool>.NotFound();
+        if (employee.IsActive)
+        {
+            return ServiceResult<bool>.Conflict("Deactivate the employee before permanently deleting the account.");
+        }
+        if (await repository.HasEmployeeReferencesAsync(employeeId, cancellationToken))
+        {
+            return ServiceResult<bool>.Conflict("This employee has managed accounts, candidates, roles, or reviewed work. Reassign or remove those records first.");
+        }
+
+        repository.RemoveEmployee(employee);
         await repository.SaveChangesAsync(cancellationToken);
         return ServiceResult<bool>.Success(true);
     }

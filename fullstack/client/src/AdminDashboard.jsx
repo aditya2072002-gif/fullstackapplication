@@ -28,6 +28,7 @@ export function AdminDashboard({ activeMenu, onMenuChange, session, onLogout, da
     const [notice, setNotice] = useState('');
     const [formOpen, setFormOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
+    const [passwordReceipt, setPasswordReceipt] = useState(null);
     const [editing, setEditing] = useState(false);
     const [candidateFilter, setCandidateFilter] = useState('');
     const [profileOpen, setProfileOpen] = useState(false);
@@ -102,13 +103,23 @@ export function AdminDashboard({ activeMenu, onMenuChange, session, onLogout, da
                 token: session.accessToken, method: editing ? 'PUT' : 'POST', body,
             });
             setFormOpen(false);
-            setNotice(editing ? 'Candidate profile updated.' : 'Candidate profile created.');
+            if (!editing) setPasswordReceipt({ username: formValues.username, password: formValues.password });
+            setNotice(editing ? 'Candidate profile updated.' : 'Candidate profile created. Save the initial password now; it will not be shown again.');
             await loadCandidates();
             setSelectedId(String(result.id));
         } catch (requestError) {
             setError(requestError.message || 'Could not save the candidate profile.');
         } finally {
             setIsSaving(false);
+        }
+    }
+
+    async function copyInitialPassword() {
+        try {
+            await navigator.clipboard.writeText(passwordReceipt.password);
+            setNotice('Initial password copied. Save it securely; it will not be shown again.');
+        } catch (copyError) {
+            setError(copyError.message || 'Could not copy the initial password.');
         }
     }
 
@@ -315,6 +326,14 @@ export function AdminDashboard({ activeMenu, onMenuChange, session, onLogout, da
                         </Box>;
                     }}
                 </Formik>
+            </Dialog>
+            <Dialog onClose={() => { setPasswordReceipt(null); setNotice(''); }} open={Boolean(passwordReceipt)}>
+                <DialogTitle>Candidate account created</DialogTitle>
+                <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+                    <Typography>Share this initial password securely with {passwordReceipt?.username}. It is shown only once and cannot be retrieved later.</Typography>
+                    <TextField InputProps={{ readOnly: true }} label="Initial password" value={passwordReceipt?.password ?? ''} />
+                </Stack></DialogContent>
+                <DialogActions><Button onClick={() => void copyInitialPassword()}>Copy password</Button><Button onClick={() => setPasswordReceipt(null)} variant="contained">Done</Button></DialogActions>
             </Dialog>
             <Dialog onClose={() => !isSaving && setDeleteOpen(false)} open={deleteOpen}>
                 <DialogTitle>Permanently delete candidate?</DialogTitle>

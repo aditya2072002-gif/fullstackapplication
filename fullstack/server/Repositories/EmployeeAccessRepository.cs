@@ -26,6 +26,15 @@ public sealed class EmployeeAccessRepository(ApplicationDbContext dbContext)
             && account.Role == EmployeeRoles.Employee
             && (isAdmin || account.CreatedByEmployeeAccountId == managerId), cancellationToken);
 
+    public async Task<bool> HasEmployeeReferencesAsync(int employeeId, CancellationToken cancellationToken) =>
+        await dbContext.EmployeeAccounts.AnyAsync(account => account.CreatedByEmployeeAccountId == employeeId, cancellationToken)
+        || await dbContext.EmployeeRoleDefinitions.AnyAsync(role => role.CreatedByEmployeeAccountId == employeeId, cancellationToken)
+        || await dbContext.CandidateProfiles.AnyAsync(profile => profile.CreatorEmployeeAccountId == employeeId
+            || profile.InterviewDecisionByEmployeeAccountId == employeeId, cancellationToken)
+        || await dbContext.CandidateWorkEntries.AnyAsync(entry => entry.ReviewedByEmployeeAccountId == employeeId, cancellationToken);
+
+    public void RemoveEmployee(EmployeeAccount employee) => dbContext.EmployeeAccounts.Remove(employee);
+
     public async Task<IReadOnlyList<EmployeeAccount>> GetManagedEmployeesAsync(
         int managerId, CancellationToken cancellationToken) =>
         await dbContext.EmployeeAccounts.AsNoTracking()

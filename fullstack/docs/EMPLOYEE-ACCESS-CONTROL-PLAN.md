@@ -20,6 +20,7 @@ The `AddEmployeeAccessRoles` migration creates role definitions and permission r
 | `Team.View` | View direct reports and their active/inactive summary. |
 | `Team.CreateEmployees` | Create direct reports. |
 | `Team.ManageEmployees` | Activate or deactivate direct reports. |
+| `Team.DeleteEmployees` | Permanently delete inactive direct reports that have no dependent records. |
 | `Team.CreateRoles` | Create roles using only the creator's current permissions. |
 | `Team.GrantPermissions` | Assign or remove roles for direct reports, without exceeding the caller's permissions. |
 
@@ -37,6 +38,8 @@ Admin accounts are the administrative override. Candidate and Employee base role
 | `GET /api/employee/managed-employees/summary` | Employee with `Team.View` | Return active and inactive counts for direct reports. |
 | `POST /api/employee/managed-employees` | Employee with `Team.CreateEmployees` | Create a direct report. A role is granted only when selected and authorized. |
 | `PATCH /api/employee/managed-employees/{employeeId}/status` | Employee with `Team.ManageEmployees` | Activate or deactivate a direct report. Deactivation invalidates the employee's JWT on its next request. |
+| `DELETE /api/admin/employees/{employeeId}` | Admin with `Team.DeleteEmployees` | Permanently delete an inactive employee with no dependent records. |
+| `DELETE /api/employee/managed-employees/{employeeId}` | Employee with `Team.DeleteEmployees` | Permanently delete an inactive direct report with no dependent records. |
 | `GET /api/admin/employees` | Admin | List all employee accounts. |
 | `POST /api/admin/employees` | Admin or employee with `Team.CreateEmployees` | Create an employee; employee callers are recorded as the creator. |
 | `PATCH /api/admin/employees/{employeeId}/status` | Admin or employee with `Team.ManageEmployees` | Change status, with employee callers restricted to their direct reports. |

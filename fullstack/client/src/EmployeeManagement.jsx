@@ -12,7 +12,7 @@ import { StatusDonut } from './StatusDonut.jsx';
 
 const permissionCodes = {
     viewTeam: 'Team.View', createEmployees: 'Team.CreateEmployees', manageEmployees: 'Team.ManageEmployees',
-    createRoles: 'Team.CreateRoles', grantPermissions: 'Team.GrantPermissions',
+    deleteEmployees: 'Team.DeleteEmployees', createRoles: 'Team.CreateRoles', grantPermissions: 'Team.GrantPermissions',
     manageRolePermissions: 'Team.ManageRolePermissions',
 };
 const emptyValues = { username: '', password: '', displayName: '', department: '', stack: '' };
@@ -25,6 +25,7 @@ export function EmployeeManagement({ session, managedByEmployee = false }) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [passwordReceipt, setPasswordReceipt] = useState(null);
     const [roleDialogOpen, setRoleDialogOpen] = useState(false);
     const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
     const [roleName, setRoleName] = useState('');
@@ -39,10 +40,11 @@ export function EmployeeManagement({ session, managedByEmployee = false }) {
     const can = code => isAdmin || access.permissions.includes(code);
     const canCreateEmployees = can(permissionCodes.createEmployees);
     const canManageEmployees = can(permissionCodes.manageEmployees);
+    const canDeleteEmployees = can(permissionCodes.deleteEmployees);
     const canGrant = can(permissionCodes.grantPermissions);
     const canCreateRoles = can(permissionCodes.createRoles);
     const canManageRolePermissions = can(permissionCodes.manageRolePermissions);
-    const canViewTeam = !managedByEmployee || [permissionCodes.viewTeam, permissionCodes.createEmployees, permissionCodes.manageEmployees, permissionCodes.createRoles, permissionCodes.grantPermissions, permissionCodes.manageRolePermissions].some(can);
+    const canViewTeam = !managedByEmployee || [permissionCodes.viewTeam, permissionCodes.createEmployees, permissionCodes.manageEmployees, permissionCodes.deleteEmployees, permissionCodes.createRoles, permissionCodes.grantPermissions, permissionCodes.manageRolePermissions].some(can);
     const chartData = useMemo(() => [
         { label: 'Active', value: summary.activeEmployees },
         { label: 'Inactive', value: summary.inactiveEmployees },
@@ -113,9 +115,10 @@ export function EmployeeManagement({ session, managedByEmployee = false }) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(values),
             });
+            setPasswordReceipt({ username: values.username, password: values.password });
             resetForm();
             setDialogOpen(false);
-            setNotice('Employee account created without an assigned permission role.');
+            setNotice('Employee account created without an assigned permission role. Save the initial password now; it will not be shown again.');
             await loadEmployees();
         } catch (requestError) {
             setError(requestError.message || 'Could not create the employee account.');
@@ -152,6 +155,28 @@ export function EmployeeManagement({ session, managedByEmployee = false }) {
             await loadEmployees();
         } catch (requestError) {
             setError(requestError.message || 'Could not update employee status.');
+        }
+    }
+
+    async function deleteEmployee(employee) {
+        if (employee.isActive || !window.confirm(`Permanently delete inactive employee ${employee.displayName}?`)) return;
+        setError('');
+        try {
+            const route = managedByEmployee ? employeesUrl : '/api/admin/employees';
+            await apiRequest(`${route}/${employee.id}`, { token: session.accessToken, method: 'DELETE' });
+            setNotice('Inactive employee account permanently deleted.');
+            await loadEmployees();
+        } catch (requestError) {
+            setError(requestError.message || 'Could not delete the employee account.');
+        }
+    }
+
+    async function copyInitialPassword() {
+        try {
+            await navigator.clipboard.writeText(passwordReceipt.password);
+            setNotice('Initial password copied. Save it securely; it will not be shown again.');
+        } catch (copyError) {
+            setError(copyError.message || 'Could not copy the initial password.');
         }
     }
 
@@ -223,14 +248,15 @@ export function EmployeeManagement({ session, managedByEmployee = false }) {
                 {loading ? <Box className="loading-state"><CircularProgress size={26} /><Typography>Loading employees...</Typography></Box> : employees.length === 0 ? (
                     <Stack alignItems="center" className="empty-state" spacing={1.5}><Box className="empty-state-icon"><PortalIcon name="employee" size={30} /></Box><Typography color="text.secondary">No employees are assigned to your management scope.</Typography></Stack>
                 ) : <TableContainer><Table size="small" aria-label="Managed employees"><TableHead><TableRow>
-                    <TableCell>Name</TableCell><TableCell>Username</TableCell><TableCell>Department</TableCell><TableCell>Technology stack</TableCell><TableCell>Assigned role</TableCell><TableCell>Status</TableCell>{(canGrant || canManageEmployees) && <TableCell>Access actions</TableCell>}
+                    {(canGrant || canManageEmployees || canDeleteEmployees) && <TableCell>Access actions</TableCell>}
                 </TableRow></TableHead><TableBody>{employees.map(employee => <TableRow hover key={employee.id}>
                     <TableCell><Stack alignItems="center" direction="row" spacing={1.25}><ProfileAvatar id={employee.id} name={employee.displayName} onError={setPhotoError} role="Employee" size={36} token={session.accessToken} editable />{employee.displayName}</Stack></TableCell>
                     <TableCell>{employee.username}</TableCell><TableCell>{employee.department}</TableCell><TableCell>{employee.stack}</TableCell><TableCell>{employee.roleDefinitionName || 'No permissions'}</TableCell>
                     <TableCell>{employee.isActive ? 'Active' : 'Inactive'}</TableCell>
-                    {(canGrant || canManageEmployees) && <TableCell><Stack direction="row" spacing={1} alignItems="center">
+                    {(canGrant || canManageEmployees || canDeleteEmployees) && <TableCell><Stack direction="row" spacing={1} alignItems="center">
                         {canGrant && <><FormControl size="small" sx={{ minWidth: 140 }}><InputLabel id={`role-${employee.id}`}>Role</InputLabel><Select label="Role" labelId={`role-${employee.id}`} onChange={event => setSelectedRoles(current => ({ ...current, [employee.id]: event.target.value }))} value={selectedRoles[employee.id] ?? ''}><MenuItem value="">No permissions</MenuItem>{roles.map(role => <MenuItem key={role.id} value={String(role.id)}>{role.name}</MenuItem>)}</Select></FormControl><Button disabled={selectedRoles[employee.id] === String(employee.roleDefinitionId ?? '')} onClick={() => void updateRole(employee.id, selectedRoles[employee.id])} size="small">Apply</Button></>}
                         {canManageEmployees && <Button color={employee.isActive ? 'warning' : 'success'} onClick={() => void toggleEmployeeStatus(employee)} size="small">{employee.isActive ? 'Deactivate' : 'Reactivate'}</Button>}
+                        {canDeleteEmployees && !employee.isActive && <Button color="error" onClick={() => void deleteEmployee(employee)} size="small">Delete</Button>}
                     </Stack></TableCell>}
                 </TableRow>)}</TableBody></Table></TableContainer>}
             </CardContent></Card>
@@ -255,6 +281,14 @@ export function EmployeeManagement({ session, managedByEmployee = false }) {
                         </Stack></DialogContent><DialogActions><Button disabled={saving} onClick={() => setDialogOpen(false)}>Cancel</Button><Button disabled={saving} type="submit" variant="contained">{saving ? 'Creating...' : 'Create employee'}</Button></DialogActions>
                     </Box>}
                 </Formik>
+            </Dialog>
+            <Dialog onClose={() => { setPasswordReceipt(null); setNotice(''); }} open={Boolean(passwordReceipt)}>
+                <DialogTitle>Employee account created</DialogTitle>
+                <DialogContent><Stack spacing={2} sx={{ pt: 1 }}>
+                    <Typography>Share this initial password securely with {passwordReceipt?.username}. It is shown only once and cannot be retrieved later.</Typography>
+                    <TextField InputProps={{ readOnly: true }} label="Initial password" value={passwordReceipt?.password ?? ''} />
+                </Stack></DialogContent>
+                <DialogActions><Button onClick={() => void copyInitialPassword()}>Copy password</Button><Button onClick={() => setPasswordReceipt(null)} variant="contained">Done</Button></DialogActions>
             </Dialog>
             <Dialog fullWidth maxWidth="sm" onClose={() => !saving && setRoleDialogOpen(false)} open={roleDialogOpen}>
                 <Box component="form" onSubmit={createRole}><DialogTitle>Create role</DialogTitle><DialogContent><Stack spacing={1} sx={{ pt: 1 }}>

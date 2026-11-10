@@ -1,4 +1,4 @@
-import { Box, Stack, Typography } from '@mui/material';
+so import { Box, Stack, Typography } from '@mui/material';
 
 export function WorkReportChart({ title, description, descriptionScale, data, valueLabel, maxValue: scaleMax }) {
     const maxValue = scaleMax ?? Math.max(...data.map(item => item.value), 1);
