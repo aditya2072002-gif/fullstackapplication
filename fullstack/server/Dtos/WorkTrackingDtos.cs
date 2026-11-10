@@ -1,6 +1,37 @@
 using System.ComponentModel.DataAnnotations;
+using fullstackapplication.Server.Models;
 
 namespace fullstackapplication.Server.Dtos;
+
+public sealed class SearchCandidateWorkEntriesRequest : IValidatableObject
+{
+    public int? CandidateId { get; set; }
+
+    public string? Name { get; set; }
+
+    public string? Stack { get; set; }
+
+    public DateOnly? DateFrom { get; set; }
+
+    public DateOnly? DateTo { get; set; }
+
+    public string? Status { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (DateFrom.HasValue && DateTo.HasValue && DateFrom > DateTo)
+        {
+            yield return new ValidationResult(
+                "The start date must be on or before the end date.",
+                new[] { nameof(DateTo) });
+        }
+
+        if (!string.IsNullOrWhiteSpace(Status) && !CandidateWorkStatuses.All.Contains(Status))
+        {
+            yield return new ValidationResult("Status must be Pending, Approved, or Rejected.", new[] { nameof(Status) });
+        }
+    }
+}
 
 public sealed class CandidateWorkEntryRequest
 {
@@ -26,13 +57,54 @@ public sealed class CandidateWorkEntryRequest
     public string AiToolsUsed { get; set; } = string.Empty;
 }
 
-public sealed class ReviewCandidateWorkEntryRequest
+public sealed class ReviewCandidateWorkEntriesRequest : IValidatableObject
 {
-    [Range(0, 100)]
-    public int Grade { get; set; }
+    [Range(1, int.MaxValue)]
+    public int CandidateId { get; set; }
+
+    [Required, MinLength(1)]
+    public IReadOnlyList<int> EntryIds { get; set; } = Array.Empty<int>();
+
+    [Required]
+    public string Status { get; set; } = string.Empty;
 
     [StringLength(2000)]
-    public string? AdminFeedback { get; set; }
+    public string? Comment { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (EntryIds.Any(id => id <= 0) || EntryIds.Distinct().Count() != EntryIds.Count)
+        {
+            yield return new ValidationResult("Entry IDs must be positive and unique.", new[] { nameof(EntryIds) });
+        }
+
+        if (Status is not CandidateWorkStatuses.Approved and not CandidateWorkStatuses.Rejected)
+        {
+            yield return new ValidationResult("Status must be Approved or Rejected.", new[] { nameof(Status) });
+        }
+
+        if (Status == CandidateWorkStatuses.Rejected && string.IsNullOrWhiteSpace(Comment))
+        {
+            yield return new ValidationResult("A comment is required when rejecting work.", new[] { nameof(Comment) });
+        }
+    }
+}
+
+public sealed class UpdateCandidateInterviewDecisionRequest : IValidatableObject
+{
+    [Required]
+    public string Decision { get; set; } = string.Empty;
+
+    [StringLength(2000)]
+    public string? Comment { get; set; }
+
+    public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
+    {
+        if (Decision is not CandidateInterviewDecisions.InterviewQualified and not CandidateInterviewDecisions.NotQualified)
+        {
+            yield return new ValidationResult("Decision must be InterviewQualified or NotQualified.", new[] { nameof(Decision) });
+        }
+    }
 }
 
 public sealed record CandidateWorkEntryResponse(
@@ -48,8 +120,8 @@ public sealed record CandidateWorkEntryResponse(
     string Learnings,
     string BlockersAndChallenges,
     string AiToolsUsed,
-    int? Grade,
-    string? AdminFeedback,
+    string Status,
+    string? ReviewComment,
     DateTime SubmittedAtUtc,
     DateTime? ReviewedAtUtc,
     int? ReviewedByEmployeeAccountId,

@@ -15,7 +15,11 @@ export async function apiRequest(url, { token, responseType = 'json', ...options
     }
 
     const requestUrl = apiBaseUrl ? new URL(url, `${apiBaseUrl}/`).toString() : url;
-    const response = await fetch(requestUrl, { ...options, headers });
+    headers.set('Cache-Control', 'no-store');
+    const response = await fetch(requestUrl, { ...options, cache: 'no-store', headers });
+    if (response.status === 401 && token) {
+        window.dispatchEvent(new Event('portal:session-expired'));
+    }
     if (!response.ok) {
         const body = await response.text();
         let message = `Request failed (HTTP ${response.status}).`;

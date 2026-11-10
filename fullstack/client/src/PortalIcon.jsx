@@ -5,6 +5,7 @@ const iconPaths = {
     directory: <><rect x="3.5" y="4" width="17" height="16" rx="2" /><path d="M8 4v16M12 9h5M12 13h5M12 17h3" /></>,
     work: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2" /></>,
     review: <><path d="M4 5h16M4 10h10M4 15h8" /><circle cx="18" cy="17" r="3" /><path d="m16.8 17 1 1 1.6-2" /></>,
+    chat: <><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6a7.5 7.5 0 1 1 17-3.5Z" /><path d="M8 11h8M8 14.5h5" /></>,
     notification: <><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" /><path d="M10 21h4" /></>,
     delete: <><path d="M4 7h16M10 11v6M14 11v6M5 7l1 14h12l1-14M9 7V4h6v3" /></>,
     search: <><circle cx="10.8" cy="10.8" r="6.3" /><path d="m16 16 4.2 4.2" /></>,

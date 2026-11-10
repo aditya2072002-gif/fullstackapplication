@@ -60,6 +60,7 @@ public sealed class CandidateController(
     [HttpPost("work-tracking")]
     [ProducesResponseType<CandidateWorkEntryResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<CandidateWorkEntryResponse>> CreateWorkEntry(
         CandidateWorkEntryRequest request, CancellationToken cancellationToken)
     {
@@ -71,12 +72,18 @@ public sealed class CandidateController(
         }
 
         var result = await workTrackingService.CreateAsync(accountId.Value, request, cancellationToken);
-        return Created($"/api/candidates/me/work-tracking/{result.Value!.Id}", result.Value);
+        return result.Kind switch
+        {
+            ServiceResultKind.NotFound => NotFound(),
+            ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
+            _ => Created($"/api/candidates/me/work-tracking/{result.Value!.Id}", result.Value)
+        };
     }
 
     [HttpPut("work-tracking/{entryId:int}")]
     [ProducesResponseType<CandidateWorkEntryResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<ActionResult<CandidateWorkEntryResponse>> UpdateWorkEntry(
         int entryId, CandidateWorkEntryRequest request, CancellationToken cancellationToken)
     {

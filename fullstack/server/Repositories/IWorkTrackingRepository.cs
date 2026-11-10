@@ -14,18 +14,31 @@ public interface IWorkTrackingRepository
         string? stack,
         DateOnly? dateFrom,
         DateOnly? dateTo,
-        int? grade,
+        string? status,
         int? ownerEmployeeId,
         CancellationToken cancellationToken);
 
     Task<CandidateWorkEntry?> GetEntryAsync(int entryId, CancellationToken cancellationToken);
 
-    Task<bool> TrySaveReviewAsync(
-        int entryId,
+    Task<DateTime?> GetCandidateCreatedAtUtcAsync(
+        int candidateId, int? ownerEmployeeId, CancellationToken cancellationToken);
+
+    Task<bool> TrySaveReviewsAsync(
+        int candidateId,
+        IReadOnlyCollection<int> entryIds,
         int reviewerAccountId,
-        int grade,
-        string? feedback,
+        string status,
+        string? comment,
         DateTime reviewedAtUtc,
+        int? ownerEmployeeId,
+        CancellationToken cancellationToken);
+
+    Task<bool> TrySaveInterviewDecisionAsync(
+        int candidateId,
+        string decision,
+        string? comment,
+        int reviewerAccountId,
+        DateTime decidedAtUtc,
         int? ownerEmployeeId,
         CancellationToken cancellationToken);
 

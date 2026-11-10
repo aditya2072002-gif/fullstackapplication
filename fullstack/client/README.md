@@ -4,9 +4,9 @@
 
 The client is the React frontend for a work-tracking portal with separate experiences for Admins, Employees/mentors, and Candidates:
 
-- **Admins** can manage candidate profiles, create employee accounts, and find, review, grade, and provide feedback on submitted work reports.
+- **Admins** get a workforce and task-review overview with date/candidate filters, then manage candidate profiles, create employee accounts, and review submitted work reports.
 - **Employees/mentors** can create and manage candidates assigned to them, and review work submitted by those candidates.
-- **Candidates** can view and update their profile, manage a resume, change their password, and submit daily work reports.
+- **Candidates** can view and update their profile, manage a resume, change their password, and submit work reports during the first 30 days after account creation.
 
 The client communicates with an ASP.NET Core API. The API handles authentication, authorization, business rules, notifications, and persistence in SQL Server. The frontend does not connect directly to the database.
 
@@ -14,9 +14,9 @@ The client communicates with an ASP.NET Core API. The API handles authentication
 
 1. An Admin creates Employee accounts from the employee-management screen. Employee creation is restricted to Admins.
 2. An Admin or Employee can create a Candidate. Candidates created by an Employee are linked to that Employee as their owner/mentor; the Employee candidate list and candidate-management API only return or modify candidates linked to the signed-in Employee. Admin candidate-management APIs remain Admin-scoped and can manage the candidate directory.
-3. When a Candidate submits or resubmits a work entry, the API stores it and creates notifications for all active Admins and the Employee who created that Candidate. Thus, an Employee is notified only for work from their own candidates; an Admin-created candidate has no Employee owner.
-4. An Admin or the owning Employee can search and review candidate work, subject to the same ownership boundary. After a review, the Candidate receives a notification with the grade and feedback.
-5. Candidate creation by an Employee also notifies active Admins. Notifications are retrieved per signed-in account; users can mark them read or dismiss them.
+3. Candidates can submit and edit pending work during their first 30 days after account creation. At the end of the window, the UI keeps entries viewable but disables submissions and edits; the API enforces the same boundary. Existing accounts are migrated as already past the submission window.
+4. An Admin or the owning Employee can select one candidate, check multiple pending tasks, and apply one Approved or Rejected decision with a shared comment. Rejections require a comment; reviewed tasks stay locked. The Candidate sees stage chips, review comments, and a donut of Approved, Rejected, Pending, Reviewed, and Not reviewed counts.
+5. After the 30-day window, an Admin or the owning Employee can set the separate candidate interview decision to Interview qualified or Not qualified. Candidate creation, task submissions, task decisions, and interview decisions create recipient-specific persisted notifications; SignalR pushes those notifications to the authenticated recipient.
 
 These access boundaries are enforced by API authorization and server-side ownership filters, not only by hiding client navigation.
 
@@ -36,6 +36,7 @@ index.html
 		├── Sign-in screen
 		├── AdminDashboard (when the signed-in role is Admin)
 		│   ├── PortalShell
+		│   ├── AdminOverview (when the overview section is selected)
 		│   ├── EmployeeManagement
 		│   └── WorkReviews (when the reviews section is selected)
 		├── EmployeePortal (when the signed-in role is Employee)
@@ -86,17 +87,22 @@ For example, when a candidate submits a report, `WorkTracking.jsx` submits the f
 |---|---|
 | `index.html` | HTML page that hosts the React application and provides the root mount point. |
 | `src/main.jsx` | React startup point; renders `App` and imports global CSS. |
-| `src/App.jsx` | Sign-in screen, login request, session state, theme setup, and role-based selection of the Admin, Employee, or Candidate portal. |
-| `src/api.js` | Shared API request helper; adds a bearer token when provided, handles unsuccessful HTTP responses, and parses successful responses. |
-| `src/AdminDashboard.jsx` | Admin candidate directory, candidate-management, employee-management, and section selection. |
+| `src/App.jsx` | Sign-in screen, role-based portal selection, tab-scoped session restoration, portal URL history, and session expiry/logout handling. |
+| `src/authSession.js` | Stores the JWT/user response only in `sessionStorage`, validates the saved expiry, and maps role menus to reloadable portal hash routes. |
+| `src/api.js` | Shared API request helper; adds a bearer token when provided, disables response caching, handles unsuccessful HTTP responses, and signals the app to clear expired sessions. |
+| `src/PortalChat.jsx` | Floating chat window for role-scoped employee, candidate, and work-review queries. |
+| `src/AdminDashboard.jsx` | Admin candidate directory and profile management, section selection, and overview/review/employee screen composition. |
+| `src/AdminOverview.jsx` | Admin workforce KPIs, candidate and employee status donuts, candidate task review donuts, date trends, and filtered roster activity. |
+| `src/ProfileAvatar.jsx` | Reusable profile-photo upload and initials avatar; compressed photos are stored locally in the current browser. |
 | `src/EmployeePortal.jsx` | Employee navigation, owned candidate management, and scoped work reviews. |
 | `src/EmployeeCandidates.jsx` | Employee-owned candidate list and create/edit/status actions. |
 | `src/EmployeeManagement.jsx` | Admin employee directory and employee-account creation. |
 | `src/CandidatePortal.jsx` | Candidate profile, resume, password, and portal screens. |
-| `src/WorkTracking.jsx` | Candidate work-report forms, report list, and progress report. |
-| `src/WorkReviews.jsx` | Admin/Employee report filtering, review, grading, and feedback screens; Employee results are ownership-scoped by the API. |
-| `src/NotificationsInbox.jsx` | Displays recipient-scoped notifications and supports read/dismiss actions. |
-| `src/PortalShell.jsx` | Shared portal layout, navigation, notifications, profile menu, logout, and dark-mode controls. |
+| `src/WorkTracking.jsx` | Candidate task forms, submission-window information, status/comment list, and review-count donut. |
+| `src/WorkReviews.jsx` | Candidate selection, status/date filters, pending-task multi-selection, shared-comment reviews, interview decisions, and Admin/Employee stage donuts; ownership is enforced by the API. |
+| `src/StatusDonut.jsx` | Reusable MUI donut chart for work review and interview qualification counts. |
+| `src/NotificationsInbox.jsx` | Displays recipient-scoped persisted notifications, supports read/dismiss actions, and receives SignalR events with reconnect refresh. |
+| `src/PortalShell.jsx` | Shared portal layout, history-aware navigation, notifications, profile menu, logout, dark-mode controls, and floating chat. |
 | `src/PortalIcon.jsx` | Reusable icons used by portal screens. |
 | `src/WorkReportChart.jsx` | Reusable chart display for report data. |
 | `src/index.css` | Global styles. |
@@ -108,15 +114,21 @@ For example, when a candidate submits a report, `WorkTracking.jsx` submits the f
 
 ### JWT authentication in the frontend
 
-The frontend handles the login request and uses the access token returned by the API; it does not create or cryptographically validate JWTs.
+The frontend handles the login request and uses the access token returned by the API; it does not create or cryptographically validate JWTs. Browser Back from a portal subpage returns to the role's dashboard; returning to login clears the token. Reload restores the previous portal section from the URL hash and tab-scoped session storage.
 
 | File | JWT responsibility |
 |---|---|
-| `src/App.jsx` | Sends credentials to `POST /api/auth/login`, keeps the returned token and user in React session state, selects the portal based on the user's role, and clears the session on logout. The token is not persisted in browser storage. |
+| `src/App.jsx` | Sends credentials to `POST /api/auth/login`, stores the returned session in tab-scoped `sessionStorage`, and restores the current role/menu after reload while the server-issued token is valid (60 minutes by default). Logging out, an expired/unauthorized request, or navigating Back to `#/login` removes the stored session. |
 | `src/api.js` | Adds the session token as a Bearer authorization header to authenticated API requests. |
 | `src/api/notifications.js` and other API modules | Pass the token through the shared `apiRequest` helper when calling protected endpoints. |
 
-The API creates the signed token in `server/Services/JwtTokenService.cs` and configures JWT bearer validation in `server/Program.cs`. See [JWT authentication and token lifecycle](../docs/PROJECT-GUIDE.md#jwt-authentication-and-token-lifecycle) for the complete flow.
+The API creates the signed token in `server/Services/JwtTokenService.cs` and configures JWT bearer validation in `server/Program.cs`. Portal sections are represented in the URL hash so reload restores the current section; browser Back from a subpage returns to that role's default dashboard, and Back to the login route clears the token. Protected API and MCP responses use `no-store`. See [JWT authentication and token lifecycle](../docs/PROJECT-GUIDE.md#jwt-authentication-and-token-lifecycle) for the complete flow.
+
+### Floating chat assistant
+
+`PortalShell` includes the shared floating `PortalChat` for Admin, Employee, and Candidate accounts. It sends supported questions to `POST /api/chat/ask` with the current bearer token. Admins can query the employee directory and global candidate/work summaries; Employees are limited to candidates they created; Candidates see only their own profile and work entries. The assistant displays active/inactive state, task review stages, and review comments where appropriate. Chat history remains in component memory and is discarded when the portal is left or reloaded.
+
+The backend also exposes the read-only MCP tools at `/mcp` for compatible MCP clients; the chat panel uses the API chat endpoint and does not require an external model provider.
 
 ## 7. Backend flow and responsibilities
 
@@ -138,10 +150,15 @@ After login, the API returns a JWT access token and user information. The client
 - `/api/admin/candidates` — Admin candidate-management operations.
 - `/api/admin/employees` — Admin-only employee listing and account creation.
 - `/api/employee/candidates` — Employee candidate listing and create/update/status operations, scoped to candidates created by that Employee.
-- `/api/admin/work-tracking` — Admin report search/review across candidates; Employee search/review is restricted to their own candidates.
+- `POST /api/chat/ask` — role-scoped question lookup for employees, candidates, and work-review details.
+- `POST /mcp` — authenticated Streamable HTTP MCP tools for employee, candidate, and review lookup.
+- `GET /api/admin/work-tracking` — task search by candidate, name, stack, date range, and status; Employee results are ownership-scoped.
+- `PUT /api/admin/work-tracking/review` — decide multiple pending entries for one candidate using a shared status and comment.
+- `PUT /api/admin/candidates/{candidateId}/interview-decision` — set the separate post-day-30 interview outcome; Employee ownership is enforced.
 - `/api/notifications` — authenticated-user notification list, mark-read, and dismiss operations.
-- `/api/candidates/me` — candidate profile operations.
-- `/api/candidates/me/work-tracking` — candidate work-report operations.
+- SignalR `/hubs/notifications` — authenticated real-time notifications; reconnect reloads the persisted inbox.
+- `/api/candidates/me` — candidate profile, interview stage, 30-day deadline, and submission eligibility.
+- `/api/candidates/me/work-tracking` — candidate work-report operations; create/update are accepted only in the first 30 days.
 - `/api/candidates/me/resume` — candidate resume upload/update operation.
 - `/api/candidates/me/password` — candidate password change operation.
 
@@ -157,6 +174,7 @@ The versions below are the **resolved direct package versions recorded in `packa
 |---|---:|---|
 | `react` | `19.3.1` | Builds the interface from reusable components. |
 | `react-dom` | `19.3.1` | Renders React into the browser DOM. |
+| `@microsoft/signalr` | See `package-lock.json` | Maintains authenticated real-time notification delivery and automatic reconnect. |
 | `@mui/material` | `9.5.0` | Material UI component library: buttons, text fields, dialogs, tables, layouts, and other UI components. |
 | `@emotion/react` | `11.14.0` | Styling engine used by Material UI. |
 | `@emotion/styled` | `11.14.1` | Styled-component support used by Material UI. |
@@ -196,9 +214,9 @@ Run these commands from `fullstack/client`:
 
 1. Sign in as an Admin, create an Employee account, and optionally create a Candidate from the Admin directory.
 2. Sign in as the Employee, create a Candidate, and verify that the Employee's candidate list contains only candidates assigned to that Employee.
-3. Sign in as that Candidate and submit a work entry. Verify the notification appears for active Admins and the creating Employee.
-4. Sign in as the owning Employee and review the work entry; verify the Employee cannot access candidates owned by another Employee. Sign in as an Admin to verify broader review access.
-5. Sign back in as the Candidate and verify the review notification, grade, and feedback.
+3. Sign in as that Candidate and submit a work entry during the submission window. Verify task-submission notifications appear for active Admins and the creating Employee.
+4. As the owning Employee, select that candidate and approve or reject pending tasks; verify multiple pending tasks share a decision/comment, rejection requires a comment, and another Employee cannot access the candidate. Admins retain cross-candidate review access.
+5. After the candidate’s 30-day window, set an interview qualification decision as the owner or Admin. Sign in as the Candidate and verify work status/comment, interview stage, donuts, submission deadline, and real-time notification.
 
 ## 12. Short technical summary
 

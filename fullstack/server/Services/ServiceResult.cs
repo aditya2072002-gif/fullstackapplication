@@ -5,7 +5,8 @@ public enum ServiceResultKind
     Success,
     NotFound,
     Conflict,
-    Invalid
+    Invalid,
+    Forbidden
 }
 
 public sealed record ServiceResult<T>(ServiceResultKind Kind, T? Value = default, string? Error = null)
@@ -17,4 +18,6 @@ public sealed record ServiceResult<T>(ServiceResultKind Kind, T? Value = default
     public static ServiceResult<T> Conflict(string error) => new(ServiceResultKind.Conflict, Error: error);
 
     public static ServiceResult<T> Invalid(string error) => new(ServiceResultKind.Invalid, Error: error);
+
+    public static ServiceResult<T> Forbidden(string error) => new(ServiceResultKind.Forbidden, Error: error);
 }

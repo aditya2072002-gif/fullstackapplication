@@ -179,7 +179,11 @@ public sealed class AdminCandidateService(
         return ServiceResult<CandidateProfileResponse>.Success(new CandidateProfileResponse(
             account.Id, account.Username, firstName, lastName, account.CandidateProfile.Email,
             phoneNumber, null, account.CandidateProfile.Stack, 0, true, null, null, null,
-            employeeAccountId, employeeName));
+            employeeAccountId, employeeName, account.CreatedAtUtc,
+            account.CandidateProfile.InterviewDecision, account.CandidateProfile.InterviewDecisionComment,
+            account.CandidateProfile.InterviewDecisionAtUtc, account.CandidateProfile.InterviewDecisionByEmployeeAccountId,
+            account.CreatedAtUtc.AddDays(30), DateTime.UtcNow < account.CreatedAtUtc.AddDays(30),
+            DateTime.UtcNow >= account.CreatedAtUtc.AddDays(30)));
     }
 
     public async Task<ServiceResult<CandidateProfileResponse>> UpdateEmployeeCandidateAsync(
@@ -332,7 +336,15 @@ public sealed class AdminCandidateService(
             profile.ResumeFileName,
             profile.ResumeContentType,
             profile.CreatorEmployeeAccountId,
-            profile.CreatorEmployeeAccount?.DisplayName);
+            profile.CreatorEmployeeAccount?.DisplayName,
+            account.CreatedAtUtc,
+            profile.InterviewDecision,
+            profile.InterviewDecisionComment,
+            profile.InterviewDecisionAtUtc,
+            profile.InterviewDecisionByEmployeeAccountId,
+            account.CreatedAtUtc.AddDays(30),
+            DateTime.UtcNow < account.CreatedAtUtc.AddDays(30),
+            DateTime.UtcNow >= account.CreatedAtUtc.AddDays(30));
     }
 
     private static void SetActiveStatus(EmployeeAccount account, bool isActive)

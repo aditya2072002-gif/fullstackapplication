@@ -95,6 +95,16 @@ public sealed class CandidateSelfService(
             account.IsActive,
             account.InactiveAtUtc,
             profile.ResumeFileName,
-            profile.ResumeContentType);
+            profile.ResumeContentType,
+            profile.CreatorEmployeeAccountId,
+            profile.CreatorEmployeeAccount?.DisplayName,
+            account.CreatedAtUtc,
+            profile.InterviewDecision,
+            profile.InterviewDecisionComment,
+            profile.InterviewDecisionAtUtc,
+            profile.InterviewDecisionByEmployeeAccountId,
+            account.CreatedAtUtc.AddDays(30),
+            DateTime.UtcNow < account.CreatedAtUtc.AddDays(30),
+            DateTime.UtcNow >= account.CreatedAtUtc.AddDays(30));
     }
 }

@@ -20,6 +20,14 @@ public sealed class CandidateProfile
 
     public int PerformanceScore { get; set; }
 
+    public string InterviewDecision { get; set; } = CandidateInterviewDecisions.PendingReview;
+
+    public string? InterviewDecisionComment { get; set; }
+
+    public DateTime? InterviewDecisionAtUtc { get; set; }
+
+    public int? InterviewDecisionByEmployeeAccountId { get; set; }
+
     public int? CreatorEmployeeAccountId { get; set; }
 
     public EmployeeAccount? CreatorEmployeeAccount { get; set; }

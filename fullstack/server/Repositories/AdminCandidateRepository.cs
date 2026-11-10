@@ -25,6 +25,7 @@ public sealed class AdminCandidateRepository(ApplicationDbContext dbContext) : I
         {
             Id = account.Id,
             Username = account.Username,
+            CreatedAtUtc = account.CreatedAtUtc,
             IsActive = account.IsActive,
             InactiveAtUtc = account.InactiveAtUtc,
             CandidateProfile = new CandidateProfile
@@ -37,6 +38,10 @@ public sealed class AdminCandidateRepository(ApplicationDbContext dbContext) : I
                 YearsOfExperience = account.CandidateProfile.YearsOfExperience,
                 Stack = account.CandidateProfile.Stack,
                 PerformanceScore = account.CandidateProfile.PerformanceScore,
+                InterviewDecision = account.CandidateProfile.InterviewDecision,
+                InterviewDecisionComment = account.CandidateProfile.InterviewDecisionComment,
+                InterviewDecisionAtUtc = account.CandidateProfile.InterviewDecisionAtUtc,
+                InterviewDecisionByEmployeeAccountId = account.CandidateProfile.InterviewDecisionByEmployeeAccountId,
                 ResumeFileName = account.CandidateProfile.ResumeFileName,
                 ResumeContentType = account.CandidateProfile.ResumeContentType,
                 CreatorEmployeeAccountId = account.CandidateProfile.CreatorEmployeeAccountId,

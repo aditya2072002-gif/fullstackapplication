@@ -1,10 +1,14 @@
 using fullstackapplication.Server.Dtos;
 using fullstackapplication.Server.Models;
 using fullstackapplication.Server.Repositories;
+using fullstackapplication.Server.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace fullstackapplication.Server.Services;
 
-public sealed class NotificationService(INotificationRepository repository) : INotificationService
+public sealed class NotificationService(
+    INotificationRepository repository,
+    IHubContext<NotificationHub> hubContext) : INotificationService
 {
     public async Task<IReadOnlyList<NotificationResponseDto>> GetNotificationsAsync(
         int recipientAccountId,
@@ -53,35 +57,73 @@ public sealed class NotificationService(INotificationRepository repository) : IN
         }).ToArray();
 
         await repository.AddRangeAsync(notifications, cancellationToken);
+        await PublishAsync(notifications, cancellationToken);
     }
 
-    public Task NotifyCandidateCreatedAsync(
+    public async Task NotifyCandidateCreatedAsync(
         string candidateName,
         string employeeName,
-        CancellationToken cancellationToken) =>
-        repository.AddCandidateCreatedNotificationsAsync(candidateName, employeeName, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var notifications = await repository.AddCandidateCreatedNotificationsAsync(candidateName, employeeName, cancellationToken);
+        await PublishAsync(notifications, cancellationToken);
+    }
 
     public async Task NotifyReviewCompletedAsync(
         int candidateAccountId,
         int reviewerAccountId,
         int workEntryId,
         string task,
-        int grade,
-        string? feedback,
+        string status,
+        string? comment,
         CancellationToken cancellationToken)
     {
         var reviewerName = await repository.GetAccountDisplayNameAsync(reviewerAccountId, cancellationToken)
             ?? throw new InvalidOperationException("The reviewing employee could not be found.");
-        var details = $"Grade: {grade}/100\nFeedback: {(string.IsNullOrWhiteSpace(feedback) ? "No feedback provided" : feedback)}";
-        await repository.AddRangeAsync(
-            [new UserNotification
+        var details = $"Status: {status}\nComment: {(string.IsNullOrWhiteSpace(comment) ? "No comment provided" : comment)}";
+        var notifications = new[]
+        {
+            new UserNotification
             {
                 RecipientEmployeeAccountId = candidateAccountId,
                 Message = $"{reviewerName} reviewed \"{task}\"",
                 Details = details,
                 RelatedWorkEntryId = workEntryId,
                 CreatedAtUtc = DateTime.UtcNow
-            }],
-            cancellationToken);
+            }
+        };
+        await repository.AddRangeAsync(notifications, cancellationToken);
+        await PublishAsync(notifications, cancellationToken);
     }
+
+    public async Task NotifyInterviewDecisionAsync(
+        int candidateAccountId,
+        string decision,
+        string? comment,
+        CancellationToken cancellationToken)
+    {
+        var notifications = new[]
+        {
+            new UserNotification
+            {
+                RecipientEmployeeAccountId = candidateAccountId,
+                Message = "Your interview qualification was updated",
+                Details = $"Decision: {decision}\nComment: {(string.IsNullOrWhiteSpace(comment) ? "No comment provided" : comment)}",
+                CreatedAtUtc = DateTime.UtcNow
+            }
+        };
+        await repository.AddRangeAsync(notifications, cancellationToken);
+        await PublishAsync(notifications, cancellationToken);
+    }
+
+    private Task PublishAsync(IReadOnlyCollection<UserNotification> notifications, CancellationToken cancellationToken) =>
+        Task.WhenAll(notifications.Select(notification => hubContext.Clients
+            .Group(NotificationHub.GetUserGroup(notification.RecipientEmployeeAccountId))
+            .SendAsync("notification", new NotificationResponseDto(
+                notification.Id,
+                notification.Message,
+                notification.Details,
+                notification.RelatedWorkEntryId,
+                notification.CreatedAtUtc,
+                notification.IsRead), cancellationToken)));
 }

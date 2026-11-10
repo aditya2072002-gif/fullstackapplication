@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { HubConnectionBuilder } from '@microsoft/signalr';
 import {
     Alert, Badge, Box, CircularProgress, Divider, IconButton, List, ListItem, ListItemText,
     Popover, Stack, Typography,
@@ -34,11 +35,29 @@ export function NotificationsInbox({ session }) {
     useEffect(() => {
         const timeoutId = window.setTimeout(() => void loadNotifications(), 0);
         const intervalId = window.setInterval(() => void loadNotifications(), 15000);
+        let active = true;
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '');
+        const hubUrl = apiBaseUrl ? `${apiBaseUrl}/hubs/notifications` : '/hubs/notifications';
+        const connection = new HubConnectionBuilder()
+            .withUrl(hubUrl, { accessTokenFactory: () => session.accessToken })
+            .withAutomaticReconnect()
+            .build();
+        connection.on('notification', notification => {
+            setNotifications(current => current.some(item => item.id === notification.id)
+                ? current
+                : [notification, ...current]);
+        });
+        connection.onreconnected(() => { void loadNotifications(); });
+        connection.start().catch(requestError => {
+            if (active) setError(requestError.message || 'Real-time notifications are unavailable; inbox refresh will continue.');
+        });
         return () => {
+            active = false;
             window.clearTimeout(timeoutId);
             window.clearInterval(intervalId);
+            void connection.stop();
         };
-    }, [loadNotifications]);
+    }, [loadNotifications, session.accessToken]);
 
     async function openInbox(event) {
         setAnchorEl(event.currentTarget);

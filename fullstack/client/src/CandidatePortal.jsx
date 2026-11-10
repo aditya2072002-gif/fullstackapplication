@@ -8,7 +8,7 @@ import { apiRequest } from './api.js';
 import { PortalShell } from './PortalShell.jsx';
 import { WorkTracking } from './WorkTracking.jsx';
 
-export function CandidatePortal({ session, onLogout, darkMode, onDarkModeChange }) {
+export function CandidatePortal({ activeMenu, onMenuChange, session, onLogout, darkMode, onDarkModeChange }) {
     const [profile, setProfile] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -17,7 +17,6 @@ export function CandidatePortal({ session, onLogout, darkMode, onDarkModeChange 
     const [passwordOpen, setPasswordOpen] = useState(false);
     const [resumeOpen, setResumeOpen] = useState(false);
     const [stackValue, setStackValue] = useState('');
-    const [activeMenu, setActiveMenu] = useState('profile');
 
     const loadProfile = useCallback(async (signal) => {
         try {
@@ -102,8 +101,8 @@ export function CandidatePortal({ session, onLogout, darkMode, onDarkModeChange 
             darkMode={darkMode}
             onDarkModeChange={onDarkModeChange}
             onLogout={onLogout}
-            onMenuChange={setActiveMenu}
-            onProfile={() => setActiveMenu('profile')}
+            onMenuChange={onMenuChange}
+            onProfile={() => onMenuChange('profile')}
             role="Candidate"
             session={session}
             title="My workspace"
@@ -113,7 +112,7 @@ export function CandidatePortal({ session, onLogout, darkMode, onDarkModeChange 
                     {notice && <Alert onClose={() => setNotice('')} severity="success">{notice}</Alert>}
                     {isLoading ? (
                         <Box className="loading-state"><CircularProgress size={28} /><Typography>Loading your profile...</Typography></Box>
-                    ) : activeMenu === 'work' ? <WorkTracking session={session} /> : profile ? (
+                    ) : activeMenu === 'work' ? <WorkTracking profile={profile} session={session} /> : profile ? (
                         <Card className="content-card" elevation={0}>
                             <CardContent>
                                 <Stack spacing={2.5}>
@@ -129,6 +128,9 @@ export function CandidatePortal({ session, onLogout, darkMode, onDarkModeChange 
                                         <ProfileField label="Phone number" value={profile.phoneNumber || 'Not provided'} />
                                         <ProfileField label="Years of experience" value={profile.yearsOfExperience == null ? 'Not provided' : `${profile.yearsOfExperience} years`} />
                                         <ProfileField label="Performance score" value={profile.performanceScore} />
+                                        <ProfileField label="Interview qualification" value={profile.interviewDecision === 'InterviewQualified' ? 'Interview qualified' : profile.interviewDecision === 'NotQualified' ? 'Not qualified' : 'Pending review'} />
+                                        {profile.interviewDecisionComment && <ProfileField label="Interview decision comment" value={profile.interviewDecisionComment} />}
+                                        <ProfileField label="Work submission deadline" value={profile.accountCreatedAtUtc ? new Date(new Date(profile.accountCreatedAtUtc).getTime() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : 'Not available'} />
                                         <ProfileField label="Resume" value={profile.resumeFileName || 'No resume uploaded'} />
                                     </Box>
                                     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'flex-start' }}>

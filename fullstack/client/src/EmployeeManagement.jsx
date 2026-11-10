@@ -7,6 +7,7 @@ import {
 } from '@mui/material';
 import { apiRequest } from './api.js';
 import { PortalIcon } from './PortalIcon.jsx';
+import { ProfileAvatar } from './ProfileAvatar.jsx';
 
 const initialValues = { username: '', password: '', displayName: '', department: '', stack: '' };
 
@@ -17,6 +18,7 @@ export function EmployeeManagement({ session }) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
+    const [photoError, setPhotoError] = useState('');
 
     const loadEmployees = useCallback(async (signal) => {
         try {
@@ -73,6 +75,7 @@ export function EmployeeManagement({ session }) {
                 </CardContent>
             </Card>
             {error && <Alert severity="error">{error}</Alert>}
+            {photoError && <Alert onClose={() => setPhotoError('')} severity="error">{photoError}</Alert>}
             {notice && <Alert onClose={() => setNotice('')} severity="success">{notice}</Alert>}
             <Card className="content-card" elevation={0}>
                 <CardContent>
@@ -84,7 +87,7 @@ export function EmployeeManagement({ session }) {
                     ) : <TableContainer><Table size="small" aria-label="Employee mentors">
                         <TableHead><TableRow><TableCell>Name</TableCell><TableCell>Username</TableCell><TableCell>Department</TableCell><TableCell>Technology stack</TableCell><TableCell>Role</TableCell></TableRow></TableHead>
                         <TableBody>{employees.map(employee => <TableRow hover key={employee.id}>
-                            <TableCell>{employee.displayName}</TableCell><TableCell>{employee.username}</TableCell>
+                            <TableCell><Stack alignItems="center" direction="row" spacing={1.25}><ProfileAvatar id={employee.id} name={employee.displayName} onError={setPhotoError} role="Employee" size={36} editable />{employee.displayName}</Stack></TableCell><TableCell>{employee.username}</TableCell>
                             <TableCell>{employee.department}</TableCell><TableCell>{employee.stack}</TableCell><TableCell>Employee / Mentor</TableCell>
                         </TableRow>)}</TableBody>
                     </Table></TableContainer>}

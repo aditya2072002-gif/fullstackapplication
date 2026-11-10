@@ -20,7 +20,7 @@ public sealed class NotificationRepository(ApplicationDbContext dbContext) : INo
             .Select(account => account.DisplayName)
             .SingleOrDefaultAsync(cancellationToken);
 
-    public async Task AddCandidateCreatedNotificationsAsync(
+    public async Task<IReadOnlyList<UserNotification>> AddCandidateCreatedNotificationsAsync(
         string candidateName,
         string employeeName,
         CancellationToken cancellationToken)
@@ -35,6 +35,7 @@ public sealed class NotificationRepository(ApplicationDbContext dbContext) : INo
             CreatedAtUtc = createdAtUtc
         }).ToArray();
         await AddRangeAsync(notifications, cancellationToken);
+        return notifications;
     }
 
     public async Task<IReadOnlyList<UserNotification>> GetActiveForRecipientAsync(

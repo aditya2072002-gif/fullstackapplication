@@ -5,7 +5,8 @@
 ```text
 server/
 ├── Controllers/       API routes, authorization, and HTTP response mapping
-├── Data/              EF Core DbContext and development data seeding
+├── Hubs/              Authenticated SignalR endpoints
+├── Data/
 ├── Dtos/              Validated API request and response models
 ├── Migrations/        EF Core database schema history
 ├── Models/            Persisted entities and role definitions
@@ -53,7 +54,21 @@ These routes require an Employee JWT. Employees can create candidates and list, 
 | `PUT /api/employee/candidates/{candidateId}` | Update an owned candidate's profile. |
 | `PATCH /api/employee/candidates/{candidateId}/status` | Activate or deactivate an owned candidate. |
 
-Admins manage the broader candidate directory through `/api/admin/candidates`. Admins and Employees can use `/api/admin/work-tracking` to search and review work; Employee results and review actions are restricted to candidates they created.
+Admins manage the broader candidate directory through `/api/admin/candidates`. Admins and Employees can search `/api/admin/work-tracking`; Employees see only candidates they created. Task review and interview decisions are detailed below.
+
+### Portal chat and MCP lookup
+
+The authenticated floating portal assistant sends natural-language questions to `POST /api/chat/ask` with `{"message":"Show pending work entries"}`. It supports employee, candidate, active/inactive, and Pending/Approved/Rejected work lookups. Explicit count requests return counts only. Name searches show matching names; list/details requests show matching records (up to 25 per lookup). Requests to create, insert, update, delete, approve, reject, or otherwise change data receive an access-denied assistant reply. Chat lookups use a small server-side intent matcher and do not send prompts or application data to an external AI provider.
+
+The API also exposes an authenticated, stateless Streamable HTTP MCP endpoint at `POST /mcp` using `ModelContextProtocol.AspNetCore` (the .NET 9-compatible C# SDK package). Registered read-only tools return count-only results for broad queries and details only for specific matches:
+
+| MCP tool | Access and results |
+|---|---|
+| `search_employees` | Admin only; returns matching counts. Employee records are included only when a specific search term identifies exactly one match. |
+| `search_candidates` | Admin sees all; Employee sees only candidates they created; Candidate sees only their own profile. Returns matching counts; records are included for a specific candidate ID or a search term identifying exactly one candidate. |
+| `search_work_reviews` | Admin sees all; Employee sees entries for owned candidates; Candidate sees only their own entries. Without a candidate ID, returns only a matching count; a specific candidate ID returns matching entries. |
+
+Both chat and MCP tools use injected services and repositories. Controllers only bind validated DTOs, call services, and map results; EF Core/SQL Server access stays in repositories. Caller ID and role come from the validated JWT, and arbitrary SQL or write operations are not exposed. API and MCP responses are marked `no-store`. No chat history or database migration is introduced.
 
 ### JWT authentication implementation
 
@@ -77,9 +92,60 @@ The signing key must be at least 32 bytes. Production requires `Jwt__SigningKey`
 
 Resume uploads accept PDF or legacy DOC files up to 10 MB. The API validates the extension and file signature, stores resume bytes in SQL Server, and returns resume metadata only. Passwords and password hashes are never returned or included in candidate profile responses. Candidate management APIs require JWT authentication and the appropriate Admin or Candidate role.
 
+## Candidate work review and interview decision API
+
+New candidate accounts receive a UTC `CreatedAtUtc`. The profile response includes `workSubmissionEndsAtUtc`, `canSubmitWork`, and the interview-decision stage. Candidates may create or update pending work only during the first 30 days after account creation. The API returns `409 Conflict` after the window ends; work stays available for viewing and review. Reviewed work cannot be edited or deleted.
+
+| Method and route | Access | Purpose |
+|---|---|---|
+| `GET /api/candidates/me/work-tracking` | Candidate | List only the caller’s work, with `status`, `reviewComment`, submission/review timestamps, and reviewer. |
+| `POST /api/candidates/me/work-tracking` | Candidate | Submit work during the 30-day window; new entries are `Pending`. |
+| `PUT /api/candidates/me/work-tracking/{entryId}` | Candidate | Update a caller-owned pending entry during the window. |
+| `DELETE /api/candidates/me/work-tracking/{entryId}` | Candidate | Delete a caller-owned pending entry. Reviewed entries return `409`. |
+| `GET /api/admin/work-tracking` | Admin or Employee | Search by `candidateId`, `name`, `stack`, `dateFrom`, `dateTo`, and `status`. Employee results are restricted to their owned candidates. |
+| `PUT /api/admin/work-tracking/review` | Admin or Employee | Atomically approve or reject multiple pending entries for one candidate. |
+| `PUT /api/admin/candidates/{candidateId}/interview-decision` | Admin or Employee | Set the separate interview decision after day 30; Employee ownership is enforced. |
+
+Bulk review request:
+
+```json
+{
+  "candidateId": 42,
+  "entryIds": [101, 102],
+  "status": "Rejected",
+  "comment": "Please clarify the reported outcome."
+}
+```
+
+`status` is `Approved` or `Rejected`; rejection requires a non-blank comment. The shared comment is limited to 2,000 characters. Reviewed entries cannot be selected again. Invalid input returns `400`, inaccessible candidates return `404`, and entries that are no longer pending return `409`.
+
+Interview decision request:
+
+```json
+{
+  "decision": "InterviewQualified",
+  "comment": "Ready for the next stage."
+}
+```
+
+Allowed decisions are `InterviewQualified` and `NotQualified`. Decisions start at `PendingReview` and can be set once, after 30 days. Early requests return `400`; duplicate decisions return `409`.
+
+### Notifications and SignalR
+
+Existing persisted endpoints remain authenticated and scoped to the JWT subject:
+
+- `GET /api/notifications` lists the caller’s active notifications.
+- `POST /api/notifications/read` marks the caller’s notifications read.
+- `DELETE /api/notifications/{id}` dismisses only the caller’s notification.
+- `/hubs/notifications` is an authenticated SignalR hub. It joins connections to a group derived from the validated JWT account ID and emits the `notification` event only to its intended recipient. The frontend refreshes from `GET /api/notifications` after reconnect.
+
+Notifications are saved before SignalR delivery. Task decisions and interview decisions notify the candidate; task submissions notify active Admins and the candidate’s Employee owner, when present.
+
+The `AddCandidateReviewStages` migration backfills existing account creation times to more than 30 days ago, maps graded work to `Approved` and ungraded work to `Pending`, and preserves legacy grade and review-history columns.
+
 ## Development startup
 
-Start the server with its `https` launch profile in Visual Studio. The API listens at `https://localhost:7216`, while the React/Vite client opens at `https://localhost:62099` and proxies `/api` requests to the API. The corresponding `http` profile listens at `http://localhost:5047`. Vite detects the ASP.NET launch URLs; when running Vite independently, set `VITE_API_TARGET` to the API origin, such as `https://localhost:7216`. API listen URLs belong in `Properties/launchSettings.json`, not `appsettings.json`.
+Start the server with its `https` or `http` launch profile in Visual Studio. The browser opens the React/Vite client at `https://localhost:62099`; Vite proxies `/api/` requests to the API. The HTTPS API listens at `https://localhost:7216` (and `http://localhost:5047`), while the HTTP profile listens at `http://localhost:5047`. Vite detects the ASP.NET launch URLs; when running Vite independently, set `VITE_API_TARGET` to the API origin, such as `https://localhost:7216`. API listen URLs belong in `Properties/launchSettings.json`, not `appsettings.json`.
 
 ## Development database and sample accounts
 
@@ -94,7 +160,7 @@ The Development seeder creates ten candidate accounts in total, including `candi
 
 ## Configuration
 
-Set `ConnectionStrings__DefaultConnection` to the SQL Server connection string for the target environment. Set `Jwt__SigningKey` to a random secret of at least 32 bytes (for example via .NET User Secrets locally or a deployment secret store); optionally configure `Jwt__Issuer`, `Jwt__Audience`, and `Jwt__LifetimeMinutes`. In Production, set `CORS_ALLOWED_ORIGINS` to the exact frontend origin, or a comma-separated list of exact origins; do not include URL paths or a trailing slash. Development uses the `Cors:AllowedOrigins` list in `appsettings.json`. Production startup fails when the signing key is absent or too short. Development generates a temporary, process-local key when one is not configured, so development tokens stop validating after an API restart. The server listens on the `PORT` environment variable and falls back to port `10000` when it is absent.
+Set `ConnectionStrings__DefaultConnection` to the SQL Server connection string for the target environment. Set `Jwt__SigningKey` to a random secret of at least 32 bytes (for example via .NET User Secrets locally or a deployment secret store); optionally configure `Jwt__Issuer`, `Jwt__Audience`, and `Jwt__LifetimeMinutes`. Development CORS origins are isolated in `appsettings.Development.json`. In Production, set `CORS_ALLOWED_ORIGINS` to the exact frontend origin, or a comma-separated list of exact origins; do not include URL paths or a trailing slash. Production startup fails when the signing key is absent or too short. Development generates a temporary, process-local key when one is not configured, so development tokens stop validating after an API restart. Non-Development hosting listens on the `PORT` environment variable and falls back to port `10000` when it is absent; Development uses the API URLs in `Properties/launchSettings.json`.
 
 ## Render and Vercel deployment
 

@@ -15,12 +15,18 @@ public interface IWorkTrackingService
 
     Task<IReadOnlyList<CandidateWorkEntryResponse>> SearchAsync(
         int? candidateId, string? name, string? stack, DateOnly? dateFrom, DateOnly? dateTo,
-        int? grade, int reviewerAccountId, bool isAdmin, CancellationToken cancellationToken);
+        string? status, int reviewerAccountId, bool isAdmin, CancellationToken cancellationToken);
 
-    Task<ServiceResult<CandidateWorkEntryResponse>> ReviewAsync(
+    Task<ServiceResult<IReadOnlyList<CandidateWorkEntryResponse>>> ReviewAsync(
         int reviewerAccountId,
         bool isAdmin,
-        int entryId,
-        ReviewCandidateWorkEntryRequest request,
+        ReviewCandidateWorkEntriesRequest request,
+        CancellationToken cancellationToken);
+
+    Task<ServiceResult<bool>> UpdateInterviewDecisionAsync(
+        int reviewerAccountId,
+        bool isAdmin,
+        int candidateId,
+        UpdateCandidateInterviewDecisionRequest request,
         CancellationToken cancellationToken);
 }
