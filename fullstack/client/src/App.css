@@ -984,6 +984,33 @@
   background: #283b56;
 }
 
+.theme-dark .portal-sidebar .portal-nav-button:hover,
+.theme-dark .portal-sidebar .portal-nav-button:focus-visible {
+  color: #fff;
+  background: #283b56;
+}
+
+.theme-dark .app-shell .MuiButton-containedPrimary,
+.theme-dark .app-shell .MuiButton-containedPrimary:hover,
+.theme-dark .app-shell .MuiButton-containedPrimary:focus-visible {
+  color: #101723 !important;
+  background-color: #91b5ed !important;
+}
+
+.theme-dark .app-shell .MuiButton-outlined:hover,
+.theme-dark .app-shell .MuiButton-outlined:focus-visible {
+  color: #fff;
+  border-color: #91b5ed;
+  background-color: #283b56;
+}
+
+.theme-dark .app-shell .MuiTab-root:hover,
+.theme-dark .app-shell .MuiTab-root:focus-visible,
+.theme-dark .app-shell .MuiTab-root.Mui-selected {
+  color: #fff !important;
+  background: #283b56;
+}
+
 .theme-dark .candidate-details,
 .theme-dark .entry-form-panel,
 .theme-dark .review-filters {

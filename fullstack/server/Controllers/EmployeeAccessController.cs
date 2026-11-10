@@ -49,6 +49,23 @@ public sealed class EmployeeAccessController(
         };
     }
 
+    [HttpDelete("{employeeId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteEmployee(int employeeId, CancellationToken cancellationToken)
+    {
+        var result = await accessService.DeleteManagedEmployeeAsync(User, employeeId, cancellationToken);
+        return result.Kind switch
+        {
+            ServiceResultKind.Forbidden => Forbid(),
+            ServiceResultKind.NotFound => NotFound(),
+            ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
+            _ => NoContent()
+        };
+    }
+
     [HttpPatch("{employeeId:int}/status")]
     public async Task<IActionResult> UpdateStatus(
         int employeeId,

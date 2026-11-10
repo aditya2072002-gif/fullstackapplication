@@ -3,7 +3,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using fullstackapplication.Server.Data;
+using fullstackapplication.Server.Models;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -24,6 +26,62 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
     {
         _factory = factory;
         _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task DemoSeedingRestoresExistingAdminLoginFromConfiguredCredentials()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var passwordHasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<EmployeeAccount>>();
+        var admin = await dbContext.EmployeeAccounts.SingleAsync(account => account.NormalizedUsername == "ADMIN");
+        admin.PasswordHash = passwordHasher.HashPassword(admin, "PreviousAdmin123!");
+        admin.IsActive = false;
+        await dbContext.SaveChangesAsync();
+
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["DemoAccounts:AdminPassword"] = "AdminDemo123!",
+            ["DemoAccounts:CandidatePassword"] = "CandidateDemo123!"
+        }).Build();
+        await DevelopmentDataSeeder.SeedAsync(dbContext, passwordHasher, configuration);
+
+        var response = await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            username = "admin",
+            password = "AdminDemo123!"
+        });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AdminCanDeleteOnlyInactiveEmployeeAccounts()
+    {
+        var adminToken = await LoginAndGetTokenAsync("admin", "AdminDemo123!");
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", adminToken);
+        var username = $"delete-employee-{Guid.NewGuid():N}"[..24];
+        var createResponse = await _client.PostAsJsonAsync("/api/admin/employees", new
+        {
+            username,
+            password = "DeleteEmployee123!",
+            displayName = "Employee To Delete",
+            department = "Test",
+            stack = "Test"
+        });
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        using var created = JsonDocument.Parse(await createResponse.Content.ReadAsStringAsync());
+        var employeeId = created.RootElement.GetProperty("id").GetInt32();
+        Assert.False(created.RootElement.TryGetProperty("password", out _));
+        Assert.False(created.RootElement.TryGetProperty("passwordHash", out _));
+
+        var activeDelete = await _client.DeleteAsync($"/api/admin/employees/{employeeId}");
+        Assert.Equal(HttpStatusCode.Conflict, activeDelete.StatusCode);
+        var deactivate = await _client.PatchAsJsonAsync($"/api/admin/employees/{employeeId}/status", new { isActive = false });
+        Assert.Equal(HttpStatusCode.NoContent, deactivate.StatusCode);
+        var delete = await _client.DeleteAsync($"/api/admin/employees/{employeeId}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        var employees = await _client.GetFromJsonAsync<JsonElement>("/api/admin/employees");
+        Assert.DoesNotContain(employees.EnumerateArray(), employee => employee.GetProperty("id").GetInt32() == employeeId);
     }
 
     [Fact]
@@ -685,7 +743,7 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         {
             "Candidates.View", "Candidates.Create", "Candidates.Update", "Candidates.Deactivate", "Candidates.Delete",
             "Reviews.Work", "Reviews.InterviewDecision", "Team.View", "Team.CreateEmployees",
-            "Team.ManageEmployees", "Team.CreateRoles", "Team.GrantPermissions"
+            "Team.ManageEmployees", "Team.DeleteEmployees", "Team.CreateRoles", "Team.GrantPermissions"
         };
         var updateManagerPermissions = await _client.PutAsJsonAsync(
             $"/api/roles/{managerRoleId}/permissions", new { permissions = managerPermissions });
@@ -747,6 +805,8 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         using var childJson = JsonDocument.Parse(await createChild.Content.ReadAsStringAsync());
         var childId = childJson.RootElement.GetProperty("id").GetInt32();
         Assert.Equal(JsonValueKind.Null, childJson.RootElement.GetProperty("roleDefinitionId").ValueKind);
+        var activeChildDelete = await _client.DeleteAsync($"/api/employee/managed-employees/{childId}");
+        Assert.Equal(HttpStatusCode.Conflict, activeChildDelete.StatusCode);
         var deniedChildRole = await _client.PutAsJsonAsync(
             $"/api/roles/employees/{childId}", new { roleDefinitionId = restrictedRoleId });
         Assert.Equal(HttpStatusCode.Forbidden, deniedChildRole.StatusCode);
@@ -760,6 +820,8 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
 
         var childToken = await LoginAndGetTokenAsync(childName, "PermissionChild123!");
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", childToken);
+        var deniedEmployeeDelete = await _client.DeleteAsync($"/api/employee/managed-employees/{childId}");
+        Assert.Equal(HttpStatusCode.Forbidden, deniedEmployeeDelete.StatusCode);
         var createCandidate = await _client.PostAsJsonAsync("/api/employee/candidates", new
         {
             username = $"permission-candidate-{suffix}",
@@ -796,6 +858,8 @@ public sealed class AuthenticationApiTests : IClassFixture<ApiFactory>
         var inactiveSummary = await _client.GetFromJsonAsync<JsonElement>("/api/employee/managed-employees/summary");
         Assert.Equal(0, inactiveSummary.GetProperty("activeEmployees").GetInt32());
         Assert.Equal(1, inactiveSummary.GetProperty("inactiveEmployees").GetInt32());
+        var childDeleteWithCandidateReference = await _client.DeleteAsync($"/api/employee/managed-employees/{childId}");
+        Assert.Equal(HttpStatusCode.Conflict, childDeleteWithCandidateReference.StatusCode);
 
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", childToken);
         var inactiveRequest = await _client.GetAsync("/api/roles/permissions");

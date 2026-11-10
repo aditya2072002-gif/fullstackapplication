@@ -35,17 +35,21 @@ The list endpoints require an Admin JWT. Candidate accounts can authenticate, bu
 
 ### Employee account management
 
-`GET /api/admin/employees` is Admin-only. Admins can create, assign roles to, and change status for employee accounts. Employees with the relevant team permissions can create and manage only the employees they directly created. Passwords are hashed before persistence; responses never include a password or hash. See [Employee access control and delegated management](../docs/EMPLOYEE-ACCESS-CONTROL-PLAN.md) for the permission catalog and implementation details.
+`GET /api/admin/employees` is Admin-only. Admins can create, assign roles to, and change status for employee accounts. Employees with the relevant team permissions can create and manage only the employees they directly created. Passwords are hashed before persistence; responses never include a password or hash. The creation form shows the submitted initial password once after a successful create so it can be shared securely; updates never show a password. See [Employee access control and delegated management](../docs/EMPLOYEE-ACCESS-CONTROL-PLAN.md) for the permission catalog and implementation details.
 
 | Method and route | Access | Purpose |
 |---|---|---|
 | `GET /api/admin/employees` | Admin | List employee accounts. |
 | `POST /api/admin/employees` | Admin or employee with `Team.CreateEmployees` | Create an Employee account without assigning a permission role. |
 | `PATCH /api/admin/employees/{employeeId}/status` | Admin or employee with `Team.ManageEmployees` | Activate or deactivate an employee; employee managers are limited to direct reports. |
+| `DELETE /api/admin/employees/{employeeId}` | Admin or employee with `Team.DeleteEmployees` | Permanently delete an inactive employee without dependent employees, candidates, roles, or reviewed work; employee managers are limited to direct reports. |
 | `GET /api/employee/managed-employees` | Employee with team-management access | List only direct reports, with assigned role and status. |
 | `GET /api/employee/managed-employees/summary` | Employee with `Team.View` | Return active/inactive direct-report counts. |
 | `POST /api/employee/managed-employees` | Employee with `Team.CreateEmployees` | Create a direct report without assigning a permission role. |
+| `DELETE /api/employee/managed-employees/{employeeId}` | Employee with `Team.DeleteEmployees` | Permanently delete an inactive direct report without dependent records. |
 | `PATCH /api/employee/managed-employees/{employeeId}/status` | Employee with `Team.ManageEmployees` | Change status for a direct report. |
+
+Employee deletion is permission-gated independently from status management.
 
 ### Employee permission roles
 
@@ -234,7 +238,7 @@ Do not place credentials in `appsettings.json` or `appsettings.Development.json`
 
 ### Temporary Docker + Cloudflare demo
 
-From the `fullstack` directory, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-demo.ps1`. If `.env` does not exist, the Windows helper creates it with cryptographically random values for `SQL_SA_PASSWORD`, `JWT_SIGNING_KEY`, `DEMO_ADMIN_PASSWORD`, and `DEMO_CANDIDATE_PASSWORD`; it never overwrites an existing `.env`. Do not commit or share `.env`. The helper starts the private SQL Server container, runs EF Core migrations through a one-shot migrator container, starts the Production API with explicitly enabled demo seeding, and creates a temporary Cloudflare Quick Tunnel. It captures the generated HTTPS origin and updates only `CORS_ALLOWED_ORIGINS` in `.env` before restarting the API. It prints the temporary public URL when ready; it never prints the generated secrets. The database is not published to the host. Demo credentials are randomly generated and stored only in `.env`; share them only with intended demo viewers.
+The database is not published to the host. Demo credentials are randomly generated and stored only in `.env`; the admin username is `admin`, and its password is the value of `DEMO_ADMIN_PASSWORD`. When demo seeding is enabled, startup synchronizes demo account roles, active status, and passwords to the configured demo values so existing demo databases remain login-ready. Share demo credentials only with intended viewers.
 
 The tunnel URL is temporary and changes when the tunnel restarts. Stop the demo with `docker compose --env-file .env down` from `fullstack`; this leaves the SQL data volume intact. Remove demo data as well only when you intentionally want to permanently delete the database volume, using `docker compose --env-file .env down --volumes`.
 

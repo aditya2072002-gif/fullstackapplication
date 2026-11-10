@@ -28,7 +28,7 @@ export function PortalShell({
             ? [
                 ...(permissions.includes('Candidates.View') ? [{ id: 'candidates', label: 'My candidates', icon: 'directory' }] : []),
                 ...(permissions.includes('Reviews.Work') ? [{ id: 'reviews', label: 'Work reviews', icon: 'review' }] : []),
-                ...(permissions.some(permission => ['Team.View', 'Team.CreateEmployees', 'Team.ManageEmployees', 'Team.CreateRoles', 'Team.GrantPermissions', 'Team.ManageRolePermissions'].includes(permission)) ? [{ id: 'employees', label: 'My team', icon: 'employee' }] : []),
+                ['Team.View', 'Team.CreateEmployees', 'Team.ManageEmployees', 'Team.DeleteEmployees', 'Team.CreateRoles', 'Team.GrantPermissions', 'Team.ManageRolePermissions']
             ]
             : [{ id: 'profile', label: 'Candidate profile', icon: 'candidate' }, { id: 'work', label: 'Work tracking', icon: 'work' }];
     return (
