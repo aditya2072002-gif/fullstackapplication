@@ -81,6 +81,29 @@ public static class DevelopmentDataSeeder
             }
         }
 
+        var mentorRole = await dbContext.EmployeeRoleDefinitions
+            .Include(role => role.Permissions)
+            .SingleOrDefaultAsync(role => role.IsBuiltIn && role.Name == "Mentor", cancellationToken);
+        if (mentorRole is null)
+        {
+            mentorRole = new EmployeeRoleDefinition
+            {
+                Name = "Mentor",
+                IsBuiltIn = true,
+                Permissions = new[]
+                {
+                    EmployeePermissions.ViewCandidates,
+                    EmployeePermissions.CreateCandidates,
+                    EmployeePermissions.UpdateCandidates,
+                    EmployeePermissions.DeactivateCandidates,
+                    EmployeePermissions.ReviewWork,
+                    EmployeePermissions.DecideInterviews
+                }.Select(permission => new EmployeeRolePermission { PermissionCode = permission }).ToList()
+            };
+            dbContext.EmployeeRoleDefinitions.Add(mentorRole);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 }

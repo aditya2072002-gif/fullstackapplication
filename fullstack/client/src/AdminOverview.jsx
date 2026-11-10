@@ -245,7 +245,7 @@ export function AdminOverview({ session, onPhotoError }) {
                         {visibleCandidates.map(candidate => {
                             const ownEntries = rangeEntries.filter(entry => String(entry.candidateId) === String(candidate.id));
                             return <Box className="overview-roster-row" key={candidate.id}>
-                                <ProfileAvatar id={candidate.id} name={candidateName(candidate)} role="Candidate" size={42} editable onError={reportPhotoError} />
+                                <ProfileAvatar id={candidate.id} name={candidateName(candidate)} role="Candidate" size={42} token={session.accessToken} editable onError={reportPhotoError} />
                                 <Box className="overview-roster-identity">
                                     <Typography fontWeight={700} noWrap>{candidateName(candidate)}</Typography>
                                     <Typography color="text.secondary" noWrap variant="caption">{candidate.stack || candidate.username || 'Candidate'}</Typography>
@@ -262,7 +262,7 @@ export function AdminOverview({ session, onPhotoError }) {
                     </RosterCard>
                     <RosterCard title="Employee team" subtitle={`${employees.length} employee${employees.length === 1 ? '' : 's'} · mentor roster`} emptyText="No employee accounts have been created yet.">
                         {employees.map(employee => <Box className="overview-roster-row" key={employee.id}>
-                            <ProfileAvatar id={employee.id} name={employee.displayName} role="Employee" size={42} editable onError={reportPhotoError} />
+                            <ProfileAvatar id={employee.id} name={employee.displayName} role="Employee" size={42} token={session.accessToken} editable onError={reportPhotoError} />
                             <Box className="overview-roster-identity">
                                 <Typography fontWeight={700} noWrap>{employee.displayName}</Typography>
                                 <Typography color="text.secondary" noWrap variant="caption">{employee.department || employee.stack || 'Employee mentor'}</Typography>
@@ -272,7 +272,7 @@ export function AdminOverview({ session, onPhotoError }) {
                     </RosterCard>
                 </Box>
                 <Typography color="text.secondary" className="overview-local-photo-note" variant="caption">
-                    Profile pictures are saved in this browser only; they are not synced to other devices.
+                    Profile pictures are saved with their accounts and are available across devices.
                 </Typography>
             </>}
         </Stack>

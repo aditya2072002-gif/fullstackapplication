@@ -11,7 +11,7 @@ namespace fullstackapplication.Server.Controllers;
 [ApiController]
 [Route("api/admin/work-tracking")]
 [Authorize(Roles = EmployeeRoles.Admin + "," + EmployeeRoles.Employee)]
-public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackingService) : ControllerBase
+public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackingService, IPermissionService permissionService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<CandidateWorkEntryResponse>>(StatusCodes.Status200OK)]
@@ -20,6 +20,7 @@ public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackin
         [FromQuery] SearchCandidateWorkEntriesRequest request,
         CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.ReviewWork, cancellationToken)) return Forbid();
         var accountId = GetAccountId();
         if (accountId is null) return Forbid();
         var isAdmin = User.IsInRole(EmployeeRoles.Admin);
@@ -44,6 +45,7 @@ public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackin
         ReviewCandidateWorkEntriesRequest request,
         CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.ReviewWork, cancellationToken)) return Forbid();
         var reviewerAccountId = GetAccountId();
         if (reviewerAccountId is null) return Forbid();
 
@@ -71,6 +73,7 @@ public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackin
         UpdateCandidateInterviewDecisionRequest request,
         CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.DecideInterviews, cancellationToken)) return Forbid();
         var reviewerAccountId = GetAccountId();
         if (reviewerAccountId is null) return Forbid();
 

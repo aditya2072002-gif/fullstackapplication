@@ -8,6 +8,8 @@ public interface IEmployeeManagementRepository
 
     Task<bool> UsernameExistsAsync(string normalizedUsername, CancellationToken cancellationToken);
 
+    Task<EmployeeRoleDefinition?> GetBuiltInMentorRoleAsync(CancellationToken cancellationToken);
+
     Task AddAsync(EmployeeAccount employee, CancellationToken cancellationToken);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);

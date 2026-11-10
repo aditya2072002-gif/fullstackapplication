@@ -219,7 +219,7 @@ export function AdminDashboard({ activeMenu, onMenuChange, session, onLogout, da
                                             return <TableRow hover key={candidate.id} onClick={() => setSelectedId(candidateId)} selected={isSelected} sx={{ cursor: 'pointer' }}>
                                                 <TableCell padding="checkbox"><Radio aria-label={`Select ${candidate.firstName} ${candidate.lastName}`} checked={isSelected} onChange={() => setSelectedId(candidateId)} value={candidateId} /></TableCell>
                                                 <TableCell><Stack alignItems="center" direction="row" spacing={1.25}>
-                                                    <ProfileAvatar id={candidate.id} name={`${candidate.firstName} ${candidate.lastName}`} onError={setProfilePhotoError} role="Candidate" size={36} editable />
+                                                    <ProfileAvatar id={candidate.id} name={`${candidate.firstName} ${candidate.lastName}`} onError={setProfilePhotoError} role="Candidate" size={36} token={session.accessToken} editable />
                                                     <DirectoryValue value={`${candidate.firstName} ${candidate.lastName}`} />
                                                 </Stack></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.creatorDisplayName || 'Admin-created'} /></TableCell>
@@ -260,8 +260,8 @@ export function AdminDashboard({ activeMenu, onMenuChange, session, onLogout, da
             <Dialog onClose={() => setProfileOpen(false)} open={profileOpen}>
                 <DialogTitle>Admin profile</DialogTitle>
                 <DialogContent><Stack alignItems="center" spacing={1.5} sx={{ pt: 1 }}>
-                    <ProfileAvatar id={session.user.id} name={session.user.displayName} onError={setProfilePhotoError} role="Admin" size={88} username={session.user.username} editable />
-                    <Typography color="text.secondary" variant="caption">Photo is stored in this browser only.</Typography>
+                    <ProfileAvatar id={session.user.id} name={session.user.displayName} onError={setProfilePhotoError} role="Admin" size={88} token={session.accessToken} username={session.user.username} editable />
+                    <Typography color="text.secondary" variant="caption">Your profile photo is saved with your account and available across devices.</Typography>
                     {profilePhotoError && <Alert onClose={() => setProfilePhotoError('')} severity="error">{profilePhotoError}</Alert>}
                     <Typography><strong>Name:</strong> {session.user.displayName}</Typography>
                     <Typography><strong>Username:</strong> {session.user.username || 'Not provided'}</Typography>

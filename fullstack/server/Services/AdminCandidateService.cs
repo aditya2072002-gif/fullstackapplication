@@ -229,6 +229,19 @@ public sealed class AdminCandidateService(
         return ServiceResult<CandidateProfileResponse>.Success(ToResponse(account));
     }
 
+    public async Task<ServiceResult<bool>> DeleteEmployeeCandidateAsync(
+        int employeeAccountId,
+        int candidateId,
+        CancellationToken cancellationToken)
+    {
+        var account = await repository.GetCandidateCreatedByAsync(candidateId, employeeAccountId, cancellationToken);
+        if (account?.CandidateProfile is null) return ServiceResult<bool>.NotFound();
+        if (account.IsActive) return ServiceResult<bool>.Conflict("Deactivate the candidate before deleting the record.");
+        repository.RemoveCandidate(account);
+        await repository.SaveChangesAsync(cancellationToken);
+        return ServiceResult<bool>.Success(true);
+    }
+
     public async Task<ServiceResult<CandidateProfileResponse>> UpdateCandidateAsync(
         int id,
         UpdateCandidateRequest request,

@@ -183,6 +183,9 @@ namespace fullstackapplication.Server.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("CreatedByEmployeeAccountId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Department")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
@@ -208,10 +211,20 @@ namespace fullstackapplication.Server.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<byte[]>("ProfilePhotoContent")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<string>("ProfilePhotoContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Role")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<int?>("RoleDefinitionId")
+                        .HasColumnType("int");
 
                     b.Property<string>("Stack")
                         .HasMaxLength(200)
@@ -224,10 +237,57 @@ namespace fullstackapplication.Server.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CreatedByEmployeeAccountId");
+
                     b.HasIndex("NormalizedUsername")
                         .IsUnique();
 
+                    b.HasIndex("RoleDefinitionId");
+
                     b.ToTable("EmployeeAccounts");
+                });
+
+            modelBuilder.Entity("fullstackapplication.Server.Models.EmployeeRoleDefinition", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CreatedByEmployeeAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsBuiltIn")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByEmployeeAccountId");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("EmployeeRoleDefinitions");
+                });
+
+            modelBuilder.Entity("fullstackapplication.Server.Models.EmployeeRolePermission", b =>
+                {
+                    b.Property<int>("EmployeeRoleDefinitionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PermissionCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("EmployeeRoleDefinitionId", "PermissionCode");
+
+                    b.ToTable("EmployeeRolePermissions");
                 });
 
             modelBuilder.Entity("fullstackapplication.Server.Models.UserNotification", b =>
@@ -306,6 +366,44 @@ namespace fullstackapplication.Server.Migrations
                     b.Navigation("ReviewedByEmployeeAccount");
                 });
 
+            modelBuilder.Entity("fullstackapplication.Server.Models.EmployeeAccount", b =>
+                {
+                    b.HasOne("fullstackapplication.Server.Models.EmployeeAccount", "CreatedByEmployeeAccount")
+                        .WithMany()
+                        .HasForeignKey("CreatedByEmployeeAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("fullstackapplication.Server.Models.EmployeeRoleDefinition", "RoleDefinition")
+                        .WithMany()
+                        .HasForeignKey("RoleDefinitionId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CreatedByEmployeeAccount");
+
+                    b.Navigation("RoleDefinition");
+                });
+
+            modelBuilder.Entity("fullstackapplication.Server.Models.EmployeeRoleDefinition", b =>
+                {
+                    b.HasOne("fullstackapplication.Server.Models.EmployeeAccount", "CreatedByEmployeeAccount")
+                        .WithMany()
+                        .HasForeignKey("CreatedByEmployeeAccountId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("CreatedByEmployeeAccount");
+                });
+
+            modelBuilder.Entity("fullstackapplication.Server.Models.EmployeeRolePermission", b =>
+                {
+                    b.HasOne("fullstackapplication.Server.Models.EmployeeRoleDefinition", "RoleDefinition")
+                        .WithMany("Permissions")
+                        .HasForeignKey("EmployeeRoleDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RoleDefinition");
+                });
+
             modelBuilder.Entity("fullstackapplication.Server.Models.UserNotification", b =>
                 {
                     b.HasOne("fullstackapplication.Server.Models.EmployeeAccount", null)
@@ -323,6 +421,11 @@ namespace fullstackapplication.Server.Migrations
             modelBuilder.Entity("fullstackapplication.Server.Models.EmployeeAccount", b =>
                 {
                     b.Navigation("CandidateProfile");
+                });
+
+            modelBuilder.Entity("fullstackapplication.Server.Models.EmployeeRoleDefinition", b =>
+                {
+                    b.Navigation("Permissions");
                 });
 #pragma warning restore 612, 618
         }

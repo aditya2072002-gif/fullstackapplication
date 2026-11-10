@@ -1,0 +1,86 @@
+services:
+  sql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${SQL_SA_PASSWORD:?Set SQL_SA_PASSWORD in fullstack/.env}
+    volumes:
+      - demo-sql-data:/var/opt/mssql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b > /dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - demo
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      target: migrate
+    environment:
+      ConnectionStrings__DefaultConnection: "Server=sql,1433;Database=FullstackApplication;User Id=sa;Password=${SQL_SA_PASSWORD:?Set SQL_SA_PASSWORD in fullstack/.env};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true;Connection Timeout=30"
+    depends_on:
+      sql:
+        condition: service_healthy
+    networks:
+      - demo
+    command:
+      - database
+      - update
+      - --project
+      - server/fullstackapplication.Server.csproj
+      - --startup-project
+      - server/fullstackapplication.Server.csproj
+      - --configuration
+      - Release
+    restart: "no"
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      PORT: "10000"
+      ConnectionStrings__DefaultConnection: "Server=sql,1433;Database=FullstackApplication;User Id=sa;Password=${SQL_SA_PASSWORD:?Set SQL_SA_PASSWORD in fullstack/.env};Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=true;Connection Timeout=30"
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in fullstack/.env}
+      DemoAccounts__AdminPassword: ${DEMO_ADMIN_PASSWORD:?Set DEMO_ADMIN_PASSWORD in fullstack/.env}
+      DemoAccounts__CandidatePassword: ${DEMO_CANDIDATE_PASSWORD:?Set DEMO_CANDIDATE_PASSWORD in fullstack/.env}
+      EnableDemoDataSeeding: "true"
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:10000}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:10000/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - demo
+    restart: unless-stopped
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: ["tunnel", "--no-autoupdate", "--url", "http://server:10000"]
+    depends_on:
+      server:
+        condition: service_healthy
+    networks:
+      - demo
+    restart: unless-stopped
+
+networks:
+  demo:
+    driver: bridge
+
+volumes:
+  demo-sql-data:

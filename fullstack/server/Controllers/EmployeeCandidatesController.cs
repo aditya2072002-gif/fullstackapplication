@@ -11,12 +11,14 @@ namespace fullstackapplication.Server.Controllers;
 [ApiController]
 [Route("api/employee/candidates")]
 [Authorize(Roles = EmployeeRoles.Employee)]
-public sealed class EmployeeCandidatesController(IAdminCandidateService candidateService) : ControllerBase
+public sealed class EmployeeCandidatesController(IAdminCandidateService candidateService, IPermissionService permissionService) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<CandidateProfileResponse>>(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<CandidateProfileResponse>>> GetCandidates(CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.ViewCandidates, cancellationToken)
+            && !await permissionService.HasAsync(User, EmployeePermissions.ReviewWork, cancellationToken)) return Forbid();
         var employeeId = GetAccountId();
         return employeeId is null
             ? Forbid()
@@ -28,6 +30,8 @@ public sealed class EmployeeCandidatesController(IAdminCandidateService candidat
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<CandidateProfileResponse>> GetCandidate(int candidateId, CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.ViewCandidates, cancellationToken)
+            && !await permissionService.HasAsync(User, EmployeePermissions.ReviewWork, cancellationToken)) return Forbid();
         var employeeId = GetAccountId();
         if (employeeId is null) return Forbid();
         var result = await candidateService.GetEmployeeCandidateAsync(employeeId.Value, candidateId, cancellationToken);
@@ -42,6 +46,7 @@ public sealed class EmployeeCandidatesController(IAdminCandidateService candidat
         CreateEmployeeCandidateRequest request,
         CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.CreateCandidates, cancellationToken)) return Forbid();
         var employeeId = GetAccountId();
         if (employeeId is null) return Forbid();
         var result = await candidateService.CreateEmployeeCandidateAsync(employeeId.Value, request, cancellationToken);
@@ -62,6 +67,7 @@ public sealed class EmployeeCandidatesController(IAdminCandidateService candidat
         UpdateEmployeeCandidateRequest request,
         CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.UpdateCandidates, cancellationToken)) return Forbid();
         var employeeId = GetAccountId();
         if (employeeId is null) return Forbid();
         var result = await candidateService.UpdateEmployeeCandidateAsync(employeeId.Value, candidateId, request, cancellationToken);
@@ -81,10 +87,30 @@ public sealed class EmployeeCandidatesController(IAdminCandidateService candidat
         UpdateEmployeeCandidateStatusRequest request,
         CancellationToken cancellationToken)
     {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.DeactivateCandidates, cancellationToken)) return Forbid();
         var employeeId = GetAccountId();
         if (employeeId is null) return Forbid();
         var result = await candidateService.UpdateEmployeeCandidateStatusAsync(employeeId.Value, candidateId, request, cancellationToken);
         return result.Kind == ServiceResultKind.NotFound ? NotFound() : Ok(result.Value);
+    }
+
+    [HttpDelete("{candidateId:int}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteCandidate(int candidateId, CancellationToken cancellationToken)
+    {
+        if (!await permissionService.HasAsync(User, EmployeePermissions.DeleteCandidates, cancellationToken)) return Forbid();
+        var employeeId = GetAccountId();
+        if (employeeId is null) return Forbid();
+        var result = await candidateService.DeleteEmployeeCandidateAsync(employeeId.Value, candidateId, cancellationToken);
+        return result.Kind switch
+        {
+            ServiceResultKind.NotFound => NotFound(),
+            ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
+            _ => NoContent()
+        };
     }
 
     private int? GetAccountId()

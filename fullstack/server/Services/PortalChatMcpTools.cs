@@ -8,7 +8,7 @@ namespace fullstackapplication.Server.Services;
 [McpServerToolType]
 public static class PortalChatMcpTools
 {
-    [McpServerTool, Description("Read-only employee lookup. Admin role is required. Returns matching counts; employee records are included only when a specific search term identifies exactly one match.")]
+    [McpServerTool, Description("Read-only employee lookup. Admins can search all employees; employees with Team.View can search only their direct reports. Returns matching counts; employee records are included only when a specific search term identifies exactly one match.")]
     public static async Task<PortalChatSearchResultDto<PortalChatEmployeeDto>> SearchEmployees(
         [Description("Optional specific text to match against username, display name, department, or technology stack. Leave blank for a count only.")] string? search,
         [Description("Set true for active accounts, false for inactive accounts, or null for all employees.")] bool? isActive,

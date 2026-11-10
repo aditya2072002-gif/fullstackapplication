@@ -7,7 +7,7 @@ import { apiRequest } from './api.js';
 import { PortalIcon } from './PortalIcon.jsx';
 import { StatusDonut } from './StatusDonut.jsx';
 
-export function WorkReviews({ session, visible }) {
+export function WorkReviews({ session, visible, permissions = [] }) {
     const [entries, setEntries] = useState([]);
     const [candidates, setCandidates] = useState([]);
     const [selectedCandidateId, setSelectedCandidateId] = useState('');
@@ -31,6 +31,7 @@ export function WorkReviews({ session, visible }) {
         { label: 'Interview qualified', value: candidates.filter(candidate => candidate.interviewDecision === 'InterviewQualified').length },
         { label: 'Not qualified', value: candidates.filter(candidate => candidate.interviewDecision === 'NotQualified').length },
     ], [candidates]);
+    const mayDecideInterviews = session.user.role !== 'Employee' || permissions.includes('Reviews.InterviewDecision');
     const interviewEligible = Boolean(selectedCandidate?.canSetInterviewDecision);
 
     const loadEntries = useCallback(async (signal) => {
@@ -212,7 +213,7 @@ export function WorkReviews({ session, visible }) {
                                 <Chip color={selectedCandidate.interviewDecision === 'InterviewQualified' ? 'success' : selectedCandidate.interviewDecision === 'NotQualified' ? 'error' : 'warning'} label={`Interview: ${selectedCandidate.interviewDecision === 'InterviewQualified' ? 'Interview qualified' : selectedCandidate.interviewDecision === 'NotQualified' ? 'Not qualified' : 'Pending review'}`} />
                             </Stack>
                         </Box>
-                        {selectedCandidate.interviewDecision === 'PendingReview' && <Stack spacing={1.5}>
+                        {mayDecideInterviews && selectedCandidate.interviewDecision === 'PendingReview' && <Stack spacing={1.5}>
                             {interviewEligible ? <>
                                 <TextField fullWidth label="Interview decision comment (optional)" inputProps={{ maxLength: 2000 }} minRows={2} multiline onChange={event => setDecisionComment(event.target.value)} value={decisionComment} />
                                 <Stack direction="row" spacing={1}>

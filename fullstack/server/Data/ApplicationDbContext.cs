@@ -13,6 +13,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
 
     public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
 
+    public DbSet<EmployeeRoleDefinition> EmployeeRoleDefinitions => Set<EmployeeRoleDefinition>();
+
+    public DbSet<EmployeeRolePermission> EmployeeRolePermissions => Set<EmployeeRolePermission>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var account = modelBuilder.Entity<EmployeeAccount>();
@@ -28,6 +32,34 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         account.Property(employee => employee.CreatedAtUtc).IsRequired();
         account.Property(employee => employee.IsActive).IsRequired();
         account.Property(employee => employee.InactiveAtUtc);
+        account.Property(employee => employee.ProfilePhotoContent).HasColumnType("varbinary(max)");
+        account.Property(employee => employee.ProfilePhotoContentType).HasMaxLength(100);
+        account.HasOne(employee => employee.CreatedByEmployeeAccount)
+            .WithMany()
+            .HasForeignKey(employee => employee.CreatedByEmployeeAccountId)
+            .OnDelete(DeleteBehavior.NoAction);
+        account.HasIndex(employee => employee.CreatedByEmployeeAccountId);
+        account.HasOne(employee => employee.RoleDefinition)
+            .WithMany()
+            .HasForeignKey(employee => employee.RoleDefinitionId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        var roleDefinition = modelBuilder.Entity<EmployeeRoleDefinition>();
+        roleDefinition.HasKey(role => role.Id);
+        roleDefinition.Property(role => role.Name).HasMaxLength(80).IsRequired();
+        roleDefinition.HasIndex(role => role.Name).IsUnique();
+        roleDefinition.Property(role => role.IsBuiltIn).IsRequired();
+        roleDefinition.HasOne(role => role.CreatedByEmployeeAccount)
+            .WithMany()
+            .HasForeignKey(role => role.CreatedByEmployeeAccountId)
+            .OnDelete(DeleteBehavior.NoAction);
+        var rolePermission = modelBuilder.Entity<EmployeeRolePermission>();
+        rolePermission.HasKey(permission => new { permission.EmployeeRoleDefinitionId, permission.PermissionCode });
+        rolePermission.Property(permission => permission.PermissionCode).HasMaxLength(80).IsRequired();
+        rolePermission.HasOne(permission => permission.RoleDefinition)
+            .WithMany(role => role.Permissions)
+            .HasForeignKey(permission => permission.EmployeeRoleDefinitionId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         var profile = modelBuilder.Entity<CandidateProfile>();
         profile.HasKey(candidate => candidate.EmployeeAccountId);

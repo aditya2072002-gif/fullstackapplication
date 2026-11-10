@@ -7,7 +7,7 @@ using fullstackapplication.Server.Repositories;
 
 namespace fullstackapplication.Server.Services;
 
-public sealed class PortalChatService(IPortalChatRepository repository) : IPortalChatService
+public sealed class PortalChatService(IPortalChatRepository repository, IPermissionService permissionService) : IPortalChatService
 {
     private const int DefaultResultLimit = 25;
     private const int MaximumResultLimit = 50;
@@ -15,14 +15,18 @@ public sealed class PortalChatService(IPortalChatRepository repository) : IPorta
     public async Task<ServiceResult<int>> CountEmployeesAsync(
         ClaimsPrincipal caller, string? search, bool? isActive, CancellationToken cancellationToken)
     {
-        if (!IsAdmin(caller)) return ServiceResult<int>.Forbidden("Employee details are available to Admin accounts only.");
-        return ServiceResult<int>.Success(await repository.CountEmployeesAsync(search, isActive, cancellationToken));
+        if (!await permissionService.HasAsync(caller, EmployeePermissions.ViewTeam, cancellationToken))
+            return ServiceResult<int>.Forbidden("You do not have permission to view employee details.");
+        var managerId = IsAdmin(caller) ? null : GetAccountId(caller);
+        return ServiceResult<int>.Success(await repository.CountEmployeesAsync(search, isActive, managerId, cancellationToken));
     }
 
     public async Task<ServiceResult<int>> CountCandidatesAsync(
         ClaimsPrincipal caller, string? search, bool? isActive, int? candidateId,
         CancellationToken cancellationToken)
     {
+        if (IsEmployee(caller) && !await permissionService.HasAsync(caller, EmployeePermissions.ViewCandidates, cancellationToken))
+            return ServiceResult<int>.Forbidden("You do not have permission to view candidate details.");
         if (!TryGetScope(caller, candidateId, out var requestedCandidateId, out var ownerEmployeeId, out var error))
         {
             return ServiceResult<int>.Forbidden(error);
@@ -40,6 +44,8 @@ public sealed class PortalChatService(IPortalChatRepository repository) : IPorta
             return ServiceResult<int>.Invalid("Status must be Pending, Approved, or Rejected.");
         }
         status = NormalizeWorkStatus(status);
+        if (IsEmployee(caller) && !await permissionService.HasAsync(caller, EmployeePermissions.ReviewWork, cancellationToken))
+            return ServiceResult<int>.Forbidden("You do not have permission to view work reviews.");
         if (!TryGetScope(caller, candidateId, out var requestedCandidateId, out var ownerEmployeeId, out var error))
         {
             return ServiceResult<int>.Forbidden(error);
@@ -53,20 +59,24 @@ public sealed class PortalChatService(IPortalChatRepository repository) : IPorta
     public async Task<ServiceResult<IReadOnlyList<PortalChatEmployeeDto>>> SearchEmployeesAsync(
         ClaimsPrincipal caller, string? search, bool? isActive, int limit, CancellationToken cancellationToken)
     {
-        if (!IsAdmin(caller)) return ServiceResult<IReadOnlyList<PortalChatEmployeeDto>>.Forbidden("Employee details are available to Admin accounts only.");
+        if (!await permissionService.HasAsync(caller, EmployeePermissions.ViewTeam, cancellationToken))
+            return ServiceResult<IReadOnlyList<PortalChatEmployeeDto>>.Forbidden("You do not have permission to view employee details.");
         if (!TryNormalizeLimit(limit, out var normalizedLimit))
         {
             return ServiceResult<IReadOnlyList<PortalChatEmployeeDto>>.Invalid("Result limit must be between 1 and 50.");
         }
 
+        var managerId = IsAdmin(caller) ? null : GetAccountId(caller);
         return ServiceResult<IReadOnlyList<PortalChatEmployeeDto>>.Success(
-            await repository.SearchEmployeesAsync(search, isActive, normalizedLimit, cancellationToken));
+            await repository.SearchEmployeesAsync(search, isActive, managerId, normalizedLimit, cancellationToken));
     }
 
     public async Task<ServiceResult<IReadOnlyList<PortalChatCandidateDto>>> SearchCandidatesAsync(
         ClaimsPrincipal caller, string? search, bool? isActive, int? candidateId,
         int limit, CancellationToken cancellationToken)
     {
+        if (IsEmployee(caller) && !await permissionService.HasAsync(caller, EmployeePermissions.ViewCandidates, cancellationToken))
+            return ServiceResult<IReadOnlyList<PortalChatCandidateDto>>.Forbidden("You do not have permission to view candidate details.");
         if (!TryGetScope(caller, candidateId, out var requestedCandidateId, out var ownerEmployeeId, out var error))
         {
             return ServiceResult<IReadOnlyList<PortalChatCandidateDto>>.Forbidden(error);
@@ -90,6 +100,8 @@ public sealed class PortalChatService(IPortalChatRepository repository) : IPorta
             return ServiceResult<IReadOnlyList<PortalChatWorkEntryDto>>.Invalid("Status must be Pending, Approved, or Rejected.");
         }
         status = NormalizeWorkStatus(status);
+        if (IsEmployee(caller) && !await permissionService.HasAsync(caller, EmployeePermissions.ReviewWork, cancellationToken))
+            return ServiceResult<IReadOnlyList<PortalChatWorkEntryDto>>.Forbidden("You do not have permission to view work reviews.");
         if (!TryGetScope(caller, candidateId, out var requestedCandidateId, out var ownerEmployeeId, out var error))
         {
             return ServiceResult<IReadOnlyList<PortalChatWorkEntryDto>>.Forbidden(error);
@@ -140,9 +152,9 @@ public sealed class PortalChatService(IPortalChatRepository repository) : IPorta
         if (mentionsEmployees)
         {
             var employeeSearch = ExtractSpecificSearchTerm(normalized);
-            if (!IsAdmin(caller))
+            if (!await permissionService.HasAsync(caller, EmployeePermissions.ViewTeam, cancellationToken))
             {
-                answerParts.Add("Employee directory details are restricted to Admin accounts.");
+                answerParts.Add("Employee directory details are restricted to Admin accounts or employees granted Team.View.");
             }
             else
             {

@@ -93,18 +93,20 @@ For example, when a candidate submits a report, `WorkTracking.jsx` submits the f
 | `src/PortalChat.jsx` | Floating chat window for role-scoped employee, candidate, and work-review queries. |
 | `src/AdminDashboard.jsx` | Admin candidate directory and profile management, section selection, and overview/review/employee screen composition. |
 | `src/AdminOverview.jsx` | Admin workforce KPIs, candidate and employee status donuts, candidate task review donuts, date trends, and filtered roster activity. |
-| `src/ProfileAvatar.jsx` | Reusable profile-photo upload and initials avatar; compressed photos are stored locally in the current browser. |
-| `src/EmployeePortal.jsx` | Employee navigation, owned candidate management, and scoped work reviews. |
-| `src/EmployeeCandidates.jsx` | Employee-owned candidate list and create/edit/status actions. |
-| `src/EmployeeManagement.jsx` | Admin employee directory and employee-account creation. |
+| `src/ProfileAvatar.jsx` | Reusable profile-photo upload and initials avatar; compressed JPEG photos are saved to the account through the API. |
+| `src/EmployeePortal.jsx` | Loads server-derived employee permissions and renders only the authorized candidate, review, and direct-report team sections. |
+| `src/EmployeeCandidates.jsx` | Employee-owned candidate list with create, edit, activate/deactivate, and inactive-delete controls shown according to assigned permissions. |
+| `src/EmployeeManagement.jsx` | Admin employee directory and delegated direct-report management; includes permission-role creation/assignment, grant-access checkbox, employee status controls, and direct-report active/inactive donut. |
 | `src/CandidatePortal.jsx` | Candidate profile, resume, password, and portal screens. |
 | `src/WorkTracking.jsx` | Candidate task forms, submission-window information, status/comment list, and review-count donut. |
-| `src/WorkReviews.jsx` | Candidate selection, status/date filters, pending-task multi-selection, shared-comment reviews, interview decisions, and Admin/Employee stage donuts; ownership is enforced by the API. |
-| `src/StatusDonut.jsx` | Reusable MUI donut chart for work review and interview qualification counts. |
+| `src/WorkReviews.jsx` | Candidate selection, status/date filters, pending-task multi-selection, shared-comment reviews, interview decisions gated by employee permissions, and Admin/Employee stage donuts; ownership is enforced by the API. |
+| `src/StatusDonut.jsx` | Reusable MUI donut chart for work review, interview qualification, and direct-report active/inactive counts. |
 | `src/NotificationsInbox.jsx` | Displays recipient-scoped persisted notifications, supports read/dismiss actions, and receives SignalR events with reconnect refresh. |
 | `src/PortalShell.jsx` | Shared portal layout, history-aware navigation, notifications, profile menu, logout, dark-mode controls, and floating chat. |
 | `src/PortalIcon.jsx` | Reusable icons used by portal screens. |
 | `src/WorkReportChart.jsx` | Reusable chart display for report data. |
+
+Employee access management is surfaced in **Admin workspace → Employees** and, when granted a team-management capability, **Employee workspace → My team**. Managers see only their direct reports; the team donut shows active and inactive direct reports, not the full descendant hierarchy. Candidate and review controls are permission-aware in the UI and are independently enforced by the API. The server endpoints and permission catalog are documented in [Employee access control and delegated management](../docs/EMPLOYEE-ACCESS-CONTROL-PLAN.md).
 | `src/index.css` | Global styles. |
 | `src/App.css` | Application-specific styles. |
 | `src/assets/` | Static images and SVG assets. |
