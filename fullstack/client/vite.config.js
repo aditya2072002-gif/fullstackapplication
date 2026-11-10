@@ -36,17 +36,19 @@ function getDevServerConfig() {
     }
 
     const apiUrls = env.ASPNETCORE_URLS?.split(';').filter(Boolean) ?? [];
-    const target = env.VITE_API_TARGET ??
+    const apiTarget = env.VITE_API_TARGET ??
         (env.ASPNETCORE_HTTPS_PORT ? `https://localhost:${env.ASPNETCORE_HTTPS_PORT}` :
             apiUrls.find(url => url.startsWith('https://')) ?? apiUrls[0] ?? 'https://localhost:7216');
 
     return {
         server: {
             proxy: {
-                '^/api': { target, secure: false },
-                '^/weatherforecast': { target, secure: false },
+                '^/api/': { target: apiTarget, secure: false },
+                '^/weatherforecast': { target: apiTarget, secure: false },
             },
-            port: parseInt(env.DEV_SERVER_PORT || '62099'),
+            host: 'localhost',
+            port: Number(env.DEV_SERVER_PORT || '62099'),
+            strictPort: true,
             https: {
                 key: fs.readFileSync(keyFilePath),
                 cert: fs.readFileSync(certFilePath),

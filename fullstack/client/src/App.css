@@ -1059,3 +1059,422 @@
     display: none;
   }
 }
+
+.admin-overview {
+  min-width: 0;
+}
+
+.overview-welcome {
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 22px !important;
+  color: #fff;
+  background:
+    radial-gradient(circle at 82% 18%, rgba(255, 255, 255, 0.21), transparent 16rem),
+    linear-gradient(118deg, #4945a8, #7164d9 56%, #4da8ad);
+  box-shadow: 0 16px 36px rgba(74, 74, 166, 0.19) !important;
+}
+
+.overview-welcome .MuiCardContent-root {
+  padding: clamp(1.25rem, 3vw, 2rem);
+}
+
+.overview-welcome h2 {
+  color: inherit;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+}
+
+.overview-welcome .MuiTypography-body2,
+.overview-welcome .overview-kicker {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.overview-kicker {
+  margin-bottom: 0.4rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase;
+}
+
+.overview-date-badge {
+  padding: 0.8rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.overview-date-badge .MuiTypography-caption {
+  display: block;
+  color: rgba(255, 255, 255, 0.76);
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+}
+
+.overview-date-badge .MuiTypography-root:last-child {
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.overview-filter-card,
+.overview-metric-card,
+.overview-chart-card,
+.overview-roster-card {
+  min-width: 0;
+  border: 1px solid #e1e7f1 !important;
+  border-radius: 18px !important;
+  background: #fff;
+  box-shadow: 0 10px 28px rgba(22, 38, 68, 0.055) !important;
+}
+
+.overview-filter-card .MuiCardContent-root,
+.overview-chart-card .MuiCardContent-root,
+.overview-roster-card .MuiCardContent-root {
+  padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+.overview-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) repeat(2, minmax(130px, 1fr)) auto;
+  align-items: start;
+  gap: 1rem;
+}
+
+.overview-filters .MuiButton-root {
+  min-height: 40px;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.overview-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.overview-metric-card {
+  overflow: hidden;
+  border-top: 3px solid var(--metric-accent) !important;
+  background: linear-gradient(150deg, color-mix(in srgb, var(--metric-accent) 9%, white), #fff 62%);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.overview-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(22, 38, 68, 0.1) !important;
+}
+
+.overview-metric-card .MuiCardContent-root {
+  padding: 1rem;
+}
+
+.overview-metric-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--metric-accent);
+  background: color-mix(in srgb, var(--metric-accent) 13%, white);
+}
+
+.overview-metric-value {
+  margin: 0.45rem 0 0.1rem !important;
+  color: #182844;
+  font-size: clamp(1.7rem, 2.4vw, 2.25rem) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.05em !important;
+}
+
+.overview-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.overview-chart-card h3,
+.overview-roster-card h3 {
+  color: #182844;
+  letter-spacing: -0.02em;
+}
+
+.overview-donut-layout {
+  display: grid;
+  grid-template-columns: minmax(135px, 0.85fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  margin-top: 1rem;
+}
+
+.overview-donut {
+  position: relative;
+  width: min(100%, 180px);
+  aspect-ratio: 1;
+  justify-self: center;
+}
+
+.overview-donut svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+
+.overview-donut-track,
+.overview-donut-segment {
+  fill: none;
+  stroke-width: 16;
+}
+
+.overview-donut-track {
+  stroke: #edf0f6;
+}
+
+.overview-donut-segment {
+  stroke-linecap: butt;
+  transition: stroke-dasharray 250ms ease;
+}
+
+.overview-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.overview-donut-center strong {
+  color: #182844;
+  font-weight: 800;
+}
+
+.overview-donut-legend {
+  min-width: 0;
+}
+
+.overview-legend-swatch {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 4px;
+}
+
+.overview-chart-empty,
+.overview-roster-empty {
+  display: grid;
+  min-height: 150px;
+  place-items: center;
+  text-align: center;
+}
+
+.overview-trend-chart {
+  width: 100%;
+  margin-top: 0.75rem;
+  overflow: hidden;
+}
+
+.overview-trend-chart svg {
+  display: block;
+  width: 100%;
+  height: 210px;
+}
+
+.overview-trend-gridline {
+  stroke: #e9edf4;
+  stroke-dasharray: 4 5;
+  stroke-width: 1;
+}
+
+.overview-trend-label {
+  fill: #66748b;
+  font-size: 10px;
+}
+
+.overview-trend-legend {
+  justify-content: center;
+  padding-top: 0.3rem;
+}
+
+.overview-roster-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 1rem;
+}
+
+.overview-roster-list {
+  display: grid;
+  max-height: 440px;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  overflow: auto;
+}
+
+.overview-roster-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+  padding: 0.7rem;
+  border: 1px solid #edf0f5;
+  border-radius: 13px;
+  background: #fbfcff;
+}
+
+.overview-roster-identity {
+  min-width: 0;
+}
+
+.overview-roster-counts {
+  display: flex;
+  grid-column: 2 / -1;
+  flex-wrap: wrap;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  padding-top: 0.1rem;
+}
+
+.overview-roster-count {
+  display: flex;
+  min-width: 44px;
+  flex-direction: column;
+}
+
+.overview-local-photo-note {
+  text-align: right;
+}
+
+.profile-photo-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-photo-input {
+  display: none;
+}
+
+.profile-photo-edit.MuiIconButton-root {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 21px;
+  height: 21px;
+  border: 2px solid #fff;
+  color: #fff;
+  background: #4e62c8;
+}
+
+.profile-photo-edit.MuiIconButton-root:hover {
+  background: #3448ad;
+}
+
+.theme-dark .overview-filter-card,
+.theme-dark .overview-metric-card,
+.theme-dark .overview-chart-card,
+.theme-dark .overview-roster-card {
+  border-color: #303d51 !important;
+  background: #192333;
+}
+
+.theme-dark .overview-metric-card {
+  background: linear-gradient(150deg, color-mix(in srgb, var(--metric-accent) 18%, #192333), #192333 65%);
+}
+
+.theme-dark .overview-metric-value,
+.theme-dark .overview-chart-card h3,
+.theme-dark .overview-roster-card h3,
+.theme-dark .overview-donut-center strong {
+  color: #edf3ff;
+}
+
+.theme-dark .overview-roster-row {
+  border-color: #303d51;
+  background: #1d2a3d;
+}
+
+.theme-dark .overview-donut-track {
+  stroke: #2a3749;
+}
+
+.theme-dark .overview-trend-gridline {
+  stroke: #354156;
+}
+
+.theme-dark .profile-photo-edit.MuiIconButton-root {
+  border-color: #192333;
+}
+
+@media (max-width: 1250px) {
+  .overview-kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .overview-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .overview-filters .MuiButton-root {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 700px) {
+  .overview-chart-grid,
+  .overview-roster-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .overview-welcome h2 {
+    font-size: 1.75rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .overview-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .overview-metric-card .MuiCardContent-root {
+    padding: 0.8rem;
+  }
+
+  .overview-metric-value {
+    font-size: 1.65rem !important;
+  }
+
+  .overview-donut-layout {
+    grid-template-columns: minmax(110px, 0.8fr) minmax(0, 1fr);
+    gap: 0.5rem;
+  }
+
+  .overview-donut {
+    width: 125px;
+  }
+
+  .overview-roster-row {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.45rem;
+    padding: 0.55rem;
+  }
+
+  .overview-roster-row .MuiChip-root {
+    font-size: 0.68rem;
+  }
+
+  .overview-date-badge {
+    width: 100%;
+  }
+}

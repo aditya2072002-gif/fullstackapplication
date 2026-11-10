@@ -1,6 +1,7 @@
 
 using System.Text;
 using fullstackapplication.Server.Data;
+using fullstackapplication.Server.Hubs;
 using fullstackapplication.Server.Models;
 using fullstackapplication.Server.Repositories;
 using fullstackapplication.Server.Services;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using ModelContextProtocol.Server;
 
 namespace fullstackapplication.Server;
 
@@ -17,14 +19,17 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-        var portValue = builder.Configuration["PORT"];
-        var port = 10000;
-        if (portValue is not null && (!int.TryParse(portValue, out port) || port is < 1 or > 65535))
+        if (!builder.Environment.IsDevelopment())
         {
-            throw new InvalidOperationException("PORT must be a valid TCP port between 1 and 65535.");
-        }
+            var portValue = builder.Configuration["PORT"];
+            var port = 10000;
+            if (portValue is not null && (!int.TryParse(portValue, out port) || port is < 1 or > 65535))
+            {
+                throw new InvalidOperationException("PORT must be a valid TCP port between 1 and 65535.");
+            }
 
-        builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+            builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+        }
 
         var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
         if (string.IsNullOrWhiteSpace(connectionString))
@@ -75,22 +80,28 @@ public class Program
             policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod()));
         builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseSqlServer(connectionString));
         builder.Services.AddScoped<IPasswordHasher<EmployeeAccount>, PasswordHasher<EmployeeAccount>>();
-        builder.Services.AddScoped<IAdminCandidateRepository, AdminCandidateRepository>();
         builder.Services.AddScoped<IAuthRepository, AuthRepository>();
+        builder.Services.AddScoped<IAuthService, AuthService>();
+        builder.Services.AddScoped<IAdminCandidateRepository, AdminCandidateRepository>();
         builder.Services.AddScoped<ICandidateSelfRepository, CandidateSelfRepository>();
         builder.Services.AddScoped<IEmployeeDirectoryRepository, EmployeeDirectoryRepository>();
         builder.Services.AddScoped<IEmployeeManagementRepository, EmployeeManagementRepository>();
+        builder.Services.AddScoped<IPortalChatRepository, PortalChatRepository>();
         builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
         builder.Services.AddScoped<IWorkTrackingRepository, WorkTrackingRepository>();
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IWorkTrackingService, WorkTrackingService>();
-        builder.Services.AddScoped<IAuthService, AuthService>();
         builder.Services.AddScoped<IAdminCandidateService, AdminCandidateService>();
         builder.Services.AddScoped<ICandidateSelfService, CandidateSelfService>();
         builder.Services.AddScoped<IEmployeeDirectoryService, EmployeeDirectoryService>();
         builder.Services.AddScoped<IEmployeeManagementService, EmployeeManagementService>();
+        builder.Services.AddScoped<IPortalChatService, PortalChatService>();
+        builder.Services.AddMcpServer()
+            .WithHttpTransport(options => options.Stateless = true)
+            .WithToolsFromAssembly();
         builder.Services.AddSingleton(new JwtTokenService(signingKeyBytes, issuer, audience, lifetimeMinutes));
         builder.Services.AddControllers();
+        builder.Services.AddSignalR();
         builder.Services.AddOpenApi();
         builder.Services.AddSwaggerGen(options =>
         {
@@ -141,6 +152,20 @@ public class Program
                     RoleClaimType = "role",
                     NameClaimType = "unique_name"
                 };
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        if (!string.IsNullOrEmpty(accessToken)
+                            && context.Request.Path.StartsWithSegments("/hubs/notifications"))
+                        {
+                            context.Token = accessToken;
+                        }
+
+                        return Task.CompletedTask;
+                    }
+                };
             });
         builder.Services.AddAuthorization();
 
@@ -178,9 +203,22 @@ public class Program
         }
 
         app.UseCors("Frontend");
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api") || context.Request.Path.StartsWithSegments("/mcp"))
+            {
+                context.Response.Headers.CacheControl = "no-store, no-cache, max-age=0";
+                context.Response.Headers.Pragma = "no-cache";
+                context.Response.Headers.Expires = "0";
+            }
+
+            await next();
+        });
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
+        app.MapMcp("/mcp").RequireAuthorization();
+        app.MapHub<NotificationHub>("/hubs/notifications");
         app.MapFallbackToFile("/index.html");
         app.Run();
     }

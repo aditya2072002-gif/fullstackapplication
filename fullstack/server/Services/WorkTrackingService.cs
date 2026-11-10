@@ -15,6 +15,13 @@ public sealed class WorkTrackingService(
     public async Task<ServiceResult<CandidateWorkEntryResponse>> CreateAsync(
         int accountId, CandidateWorkEntryRequest request, CancellationToken cancellationToken)
     {
+        var createdAtUtc = await repository.GetCandidateCreatedAtUtcAsync(accountId, null, cancellationToken);
+        if (createdAtUtc is null) return ServiceResult<CandidateWorkEntryResponse>.NotFound();
+        if (DateTime.UtcNow >= createdAtUtc.Value.AddDays(30))
+        {
+            return ServiceResult<CandidateWorkEntryResponse>.Conflict("The 30-day work submission window has ended.");
+        }
+
         var entry = new CandidateWorkEntry
         {
             CandidateProfileId = accountId,
@@ -48,9 +55,16 @@ public sealed class WorkTrackingService(
     {
         var entry = await repository.GetCandidateEntryAsync(accountId, entryId, cancellationToken);
         if (entry is null) return ServiceResult<CandidateWorkEntryResponse>.NotFound();
-        if (entry.Grade.HasValue)
+        if (entry.Status != CandidateWorkStatuses.Pending)
         {
             return ServiceResult<CandidateWorkEntryResponse>.Conflict("A reviewed work entry cannot be changed.");
+        }
+
+        var createdAtUtc = await repository.GetCandidateCreatedAtUtcAsync(accountId, null, cancellationToken);
+        if (createdAtUtc is null) return ServiceResult<CandidateWorkEntryResponse>.NotFound();
+        if (DateTime.UtcNow >= createdAtUtc.Value.AddDays(30))
+        {
+            return ServiceResult<CandidateWorkEntryResponse>.Conflict("The 30-day work submission window has ended.");
         }
 
         ApplyCandidateUpdate(entry, request);
@@ -73,7 +87,7 @@ public sealed class WorkTrackingService(
     {
         var entry = await repository.GetCandidateEntryAsync(accountId, entryId, cancellationToken);
         if (entry is null) return ServiceResult<bool>.NotFound();
-        if (entry.Grade.HasValue)
+        if (entry.Status != CandidateWorkStatuses.Pending)
         {
             return ServiceResult<bool>.Conflict("A reviewed work entry cannot be deleted.");
         }
@@ -85,52 +99,81 @@ public sealed class WorkTrackingService(
 
     public async Task<IReadOnlyList<CandidateWorkEntryResponse>> SearchAsync(
         int? candidateId, string? name, string? stack, DateOnly? dateFrom, DateOnly? dateTo,
-        int? grade, int reviewerAccountId, bool isAdmin, CancellationToken cancellationToken) =>
+        string? status, int reviewerAccountId, bool isAdmin, CancellationToken cancellationToken) =>
         (await repository.SearchEntriesAsync(
-            candidateId, name, stack, dateFrom, dateTo, grade, isAdmin ? null : reviewerAccountId, cancellationToken))
+            candidateId, name, stack, dateFrom, dateTo, status, isAdmin ? null : reviewerAccountId, cancellationToken))
         .Select(ToResponse).ToArray();
 
-    public async Task<ServiceResult<CandidateWorkEntryResponse>> ReviewAsync(
+    public async Task<ServiceResult<IReadOnlyList<CandidateWorkEntryResponse>>> ReviewAsync(
         int reviewerAccountId,
         bool isAdmin,
-        int entryId,
-        ReviewCandidateWorkEntryRequest request,
+        ReviewCandidateWorkEntriesRequest request,
         CancellationToken cancellationToken)
     {
-        var entry = await repository.GetEntryAsync(entryId, cancellationToken);
-        if (entry is null) return ServiceResult<CandidateWorkEntryResponse>.NotFound();
-        var profile = entry.CandidateProfile
-            ?? throw new InvalidOperationException("The candidate profile could not be reloaded for review.");
-        if (!isAdmin && profile.CreatorEmployeeAccountId != reviewerAccountId)
-        {
-            return ServiceResult<CandidateWorkEntryResponse>.NotFound();
-        }
+        int? ownerId = isAdmin ? null : reviewerAccountId;
+        var createdAtUtc = await repository.GetCandidateCreatedAtUtcAsync(request.CandidateId, ownerId, cancellationToken);
+        if (createdAtUtc is null) return ServiceResult<IReadOnlyList<CandidateWorkEntryResponse>>.NotFound();
 
-        var feedback = request.AdminFeedback?.Trim();
-        var saved = await repository.TrySaveReviewAsync(
-            entryId,
+        var saved = await repository.TrySaveReviewsAsync(
+            request.CandidateId,
+            request.EntryIds,
             reviewerAccountId,
-            request.Grade,
-            feedback,
+            request.Status,
+            string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim(),
             DateTime.UtcNow,
-            isAdmin ? null : reviewerAccountId,
+            ownerId,
             cancellationToken);
         if (!saved)
         {
-            return ServiceResult<CandidateWorkEntryResponse>.Conflict("This work entry has already been reviewed.");
+            return ServiceResult<IReadOnlyList<CandidateWorkEntryResponse>>.Conflict(
+                "Every selected work entry must be pending and belong to the selected candidate.");
         }
 
-        var reviewedEntry = await repository.GetEntryAsync(entryId, cancellationToken)
-            ?? throw new InvalidOperationException("The reviewed work entry could not be reloaded.");
-        await notificationService.NotifyReviewCompletedAsync(
-            profile.EmployeeAccountId,
+        var reviewedEntries = await repository.SearchEntriesAsync(
+            request.CandidateId, null, null, null, null, null, ownerId, cancellationToken);
+        var selectedEntries = reviewedEntries.Where(entry => request.EntryIds.Contains(entry.Id)).ToArray();
+        foreach (var entry in selectedEntries)
+        {
+            await notificationService.NotifyReviewCompletedAsync(
+                request.CandidateId,
+                reviewerAccountId,
+                entry.Id,
+                entry.Task,
+                entry.Status,
+                entry.AdminFeedback,
+                cancellationToken);
+        }
+
+        return ServiceResult<IReadOnlyList<CandidateWorkEntryResponse>>.Success(selectedEntries.Select(ToResponse).ToArray());
+    }
+
+    public async Task<ServiceResult<bool>> UpdateInterviewDecisionAsync(
+        int reviewerAccountId,
+        bool isAdmin,
+        int candidateId,
+        UpdateCandidateInterviewDecisionRequest request,
+        CancellationToken cancellationToken)
+    {
+        int? ownerId = isAdmin ? null : reviewerAccountId;
+        var createdAtUtc = await repository.GetCandidateCreatedAtUtcAsync(candidateId, ownerId, cancellationToken);
+        if (createdAtUtc is null) return ServiceResult<bool>.NotFound();
+        if (DateTime.UtcNow < createdAtUtc.Value.AddDays(30))
+        {
+            return ServiceResult<bool>.Invalid("The interview decision is available after the 30-day submission window ends.");
+        }
+
+        var saved = await repository.TrySaveInterviewDecisionAsync(
+            candidateId,
+            request.Decision,
+            string.IsNullOrWhiteSpace(request.Comment) ? null : request.Comment.Trim(),
             reviewerAccountId,
-            reviewedEntry.Id,
-            reviewedEntry.Task,
-            reviewedEntry.Grade!.Value,
-            reviewedEntry.AdminFeedback,
+            DateTime.UtcNow,
+            ownerId,
             cancellationToken);
-        return ServiceResult<CandidateWorkEntryResponse>.Success(ToResponse(reviewedEntry));
+        if (!saved) return ServiceResult<bool>.Conflict("An interview decision has already been recorded.");
+        await notificationService.NotifyInterviewDecisionAsync(
+            candidateId, request.Decision, request.Comment, cancellationToken);
+        return ServiceResult<bool>.Success(true);
     }
 
     private static void ApplyCandidateUpdate(CandidateWorkEntry entry, CandidateWorkEntryRequest request)
@@ -157,7 +200,7 @@ public sealed class WorkTrackingService(
         entry.Learnings,
         entry.BlockersAndChallenges,
         entry.AiToolsUsed,
-        entry.Grade,
+        entry.Status,
         entry.AdminFeedback,
         entry.SubmittedAtUtc,
         entry.ReviewedAtUtc,

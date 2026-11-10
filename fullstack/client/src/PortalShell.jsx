@@ -3,7 +3,9 @@ import {
     Avatar, Box, Button, Container, FormControlLabel, IconButton, Menu, MenuItem, Stack, Switch, Typography,
 } from '@mui/material';
 import { PortalIcon } from './PortalIcon.jsx';
+import { ProfileAvatar } from './ProfileAvatar.jsx';
 import { NotificationsInbox } from './NotificationsInbox.jsx';
+import { PortalChat } from './PortalChat.jsx';
 
 export function PortalShell({
     activeMenu,
@@ -20,7 +22,7 @@ export function PortalShell({
     const [profileAnchor, setProfileAnchor] = useState(null);
     const isAdmin = role === 'Admin';
     const sections = isAdmin
-        ? [{ id: 'directory', label: 'Candidate list', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }, { id: 'employees', label: 'Employees', icon: 'employee' }]
+        ? [{ id: 'overview', label: 'Overview', icon: 'admin' }, { id: 'directory', label: 'Candidate list', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }, { id: 'employees', label: 'Employees', icon: 'employee' }]
         : role === 'Employee'
             ? [{ id: 'candidates', label: 'My candidates', icon: 'directory' }, { id: 'reviews', label: 'Work reviews', icon: 'review' }]
             : [{ id: 'profile', label: 'Candidate profile', icon: 'candidate' }, { id: 'work', label: 'Work tracking', icon: 'work' }];
@@ -42,7 +44,9 @@ export function PortalShell({
                             <NotificationsInbox session={session} />
                             <Typography className="portal-signed-in" color="text.secondary">{session.user.displayName}</Typography>
                             <IconButton aria-label="Open profile menu" onClick={event => setProfileAnchor(event.currentTarget)}>
-                                <Avatar className="profile-avatar">{initials}</Avatar>
+                                {isAdmin
+                                    ? <ProfileAvatar id={session.user.id} name={session.user.displayName} role={role} size={40} username={session.user.username} />
+                                    : <Avatar className="profile-avatar">{initials}</Avatar>}
                             </IconButton>
                         </Stack>
                     </Box>
@@ -73,6 +77,7 @@ export function PortalShell({
                 </MenuItem>
                 <MenuItem onClick={() => { setProfileAnchor(null); onLogout(); }}>Log out</MenuItem>
             </Menu>
+            <PortalChat session={session} />
         </Box>
     );
 }

@@ -18,6 +18,8 @@ public sealed class EmployeeAccount
 
     public string PasswordHash { get; set; } = string.Empty;
 
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+
     public bool IsActive { get; set; } = true;
 
     public DateTime? InactiveAtUtc { get; set; }

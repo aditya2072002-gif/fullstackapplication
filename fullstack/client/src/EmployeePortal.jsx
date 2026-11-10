@@ -4,8 +4,7 @@ import { EmployeeCandidates } from './EmployeeCandidates.jsx';
 import { PortalShell } from './PortalShell.jsx';
 import { WorkReviews } from './WorkReviews.jsx';
 
-export function EmployeePortal({ session, onLogout, darkMode, onDarkModeChange }) {
-    const [activeMenu, setActiveMenu] = useState('candidates');
+export function EmployeePortal({ activeMenu, onMenuChange, session, onLogout, darkMode, onDarkModeChange }) {
     const [profileOpen, setProfileOpen] = useState(false);
 
     return (
@@ -14,7 +13,7 @@ export function EmployeePortal({ session, onLogout, darkMode, onDarkModeChange }
             darkMode={darkMode}
             onDarkModeChange={onDarkModeChange}
             onLogout={onLogout}
-            onMenuChange={setActiveMenu}
+            onMenuChange={onMenuChange}
             onProfile={() => setProfileOpen(true)}
             role="Employee"
             session={session}

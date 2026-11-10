@@ -25,6 +25,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         account.Property(employee => employee.Department).HasMaxLength(100);
         account.Property(employee => employee.Stack).HasMaxLength(200);
         account.Property(employee => employee.PasswordHash).HasMaxLength(500).IsRequired();
+        account.Property(employee => employee.CreatedAtUtc).IsRequired();
         account.Property(employee => employee.IsActive).IsRequired();
         account.Property(employee => employee.InactiveAtUtc);
 
@@ -41,6 +42,10 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         profile.Property(candidate => candidate.YearsOfExperience);
         profile.Property(candidate => candidate.Stack).HasMaxLength(200).IsRequired();
         profile.Property(candidate => candidate.PerformanceScore).IsRequired();
+        profile.Property(candidate => candidate.InterviewDecision).HasMaxLength(30).IsRequired();
+        profile.Property(candidate => candidate.InterviewDecisionComment).HasMaxLength(2000);
+        profile.Property(candidate => candidate.InterviewDecisionAtUtc);
+        profile.Property(candidate => candidate.InterviewDecisionByEmployeeAccountId);
         profile.HasIndex(candidate => candidate.CreatorEmployeeAccountId);
         profile.HasOne(candidate => candidate.CreatorEmployeeAccount)
             .WithMany()
@@ -62,6 +67,7 @@ public sealed class ApplicationDbContext(DbContextOptions<ApplicationDbContext> 
         workEntry.Property(entry => entry.Learnings).HasMaxLength(2000).IsRequired();
         workEntry.Property(entry => entry.BlockersAndChallenges).HasMaxLength(2000).IsRequired();
         workEntry.Property(entry => entry.AiToolsUsed).HasMaxLength(500).IsRequired();
+        workEntry.Property(entry => entry.Status).HasMaxLength(20).IsRequired();
         workEntry.Property(entry => entry.AdminFeedback).HasMaxLength(2000);
         workEntry.HasIndex(entry => new { entry.CandidateProfileId, entry.WorkDate });
         workEntry.HasOne(entry => entry.ReviewedByEmployeeAccount)

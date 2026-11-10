@@ -20,6 +20,8 @@ public sealed class CandidateWorkEntry
 
     public string AiToolsUsed { get; set; } = string.Empty;
 
+    public string Status { get; set; } = CandidateWorkStatuses.Pending;
+
     public int? Grade { get; set; }
 
     public string? AdminFeedback { get; set; }

@@ -32,7 +32,13 @@ public interface INotificationService
         int reviewerAccountId,
         int workEntryId,
         string task,
-        int grade,
-        string? feedback,
+        string status,
+        string? comment,
+        CancellationToken cancellationToken);
+
+    Task NotifyInterviewDecisionAsync(
+        int candidateAccountId,
+        string decision,
+        string? comment,
         CancellationToken cancellationToken);
 }

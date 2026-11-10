@@ -8,7 +8,7 @@ public interface INotificationRepository
 
     Task<string?> GetAccountDisplayNameAsync(int accountId, CancellationToken cancellationToken);
 
-    Task AddCandidateCreatedNotificationsAsync(
+    Task<IReadOnlyList<UserNotification>> AddCandidateCreatedNotificationsAsync(
         string candidateName,
         string employeeName,
         CancellationToken cancellationToken);

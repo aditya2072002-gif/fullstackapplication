@@ -10,13 +10,15 @@ import { PortalIcon } from './PortalIcon.jsx';
 import { PortalShell } from './PortalShell.jsx';
 import { WorkReviews } from './WorkReviews.jsx';
 import { EmployeeManagement } from './EmployeeManagement.jsx';
+import { AdminOverview } from './AdminOverview.jsx';
+import { ProfileAvatar } from './ProfileAvatar.jsx';
 
 const emptyForm = {
     username: '', password: '', firstName: '', lastName: '', email: '', phoneNumber: '',
     yearsOfExperience: '', stack: '', performanceScore: '0', isActive: true,
 };
 
-export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }) {
+export function AdminDashboard({ activeMenu, onMenuChange, session, onLogout, darkMode, onDarkModeChange }) {
     const [candidates, setCandidates] = useState([]);
     const [selectedId, setSelectedId] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -27,9 +29,9 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
     const [formOpen, setFormOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [editing, setEditing] = useState(false);
-    const [activeMenu, setActiveMenu] = useState('directory');
     const [candidateFilter, setCandidateFilter] = useState('');
     const [profileOpen, setProfileOpen] = useState(false);
+    const [profilePhotoError, setProfilePhotoError] = useState('');
 
     const selectedCandidate = useMemo(
         () => candidates.find(candidate => String(candidate.id) === selectedId),
@@ -157,13 +159,14 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
             darkMode={darkMode}
             onDarkModeChange={onDarkModeChange}
             onLogout={onLogout}
-            onMenuChange={setActiveMenu}
+            onMenuChange={onMenuChange}
             onProfile={() => setProfileOpen(true)}
             role="Admin"
             session={session}
             title="Admin workspace"
         >
             <>
+                    {activeMenu === 'overview' && <AdminOverview onPhotoError={setProfilePhotoError} session={session} />}
                     {activeMenu === 'directory' && <Box className="content-card">
                         <Stack className="section-heading" direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                             <Box><Typography component="h2" variant="h5">Candidates</Typography><Typography color="text.secondary" sx={{ mt: 0.5 }}>Select a candidate to update or delete. Deactivate a profile before deleting it.</Typography></Box>
@@ -174,6 +177,7 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
                             </Stack>
                         </Stack>
                         {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+                        {profilePhotoError && <Alert onClose={() => setProfilePhotoError('')} severity="error" sx={{ mt: 2 }}>{profilePhotoError}</Alert>}
                         {notice && <Alert onClose={() => setNotice('')} severity="success" sx={{ mt: 2 }}>{notice}</Alert>}
                         {!isLoading && candidates.length > 0 && <TextField
                             fullWidth
@@ -214,7 +218,10 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
                                             const isSelected = candidateId === selectedId;
                                             return <TableRow hover key={candidate.id} onClick={() => setSelectedId(candidateId)} selected={isSelected} sx={{ cursor: 'pointer' }}>
                                                 <TableCell padding="checkbox"><Radio aria-label={`Select ${candidate.firstName} ${candidate.lastName}`} checked={isSelected} onChange={() => setSelectedId(candidateId)} value={candidateId} /></TableCell>
-                                                <TableCell><DirectoryValue value={`${candidate.firstName} ${candidate.lastName}`} /></TableCell>
+                                                <TableCell><Stack alignItems="center" direction="row" spacing={1.25}>
+                                                    <ProfileAvatar id={candidate.id} name={`${candidate.firstName} ${candidate.lastName}`} onError={setProfilePhotoError} role="Candidate" size={36} editable />
+                                                    <DirectoryValue value={`${candidate.firstName} ${candidate.lastName}`} />
+                                                </Stack></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.creatorDisplayName || 'Admin-created'} /></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.username} /></TableCell>
                                                 <TableCell><DirectoryValue value={candidate.email} /></TableCell>
@@ -252,7 +259,10 @@ export function AdminDashboard({ session, onLogout, darkMode, onDarkModeChange }
             </>
             <Dialog onClose={() => setProfileOpen(false)} open={profileOpen}>
                 <DialogTitle>Admin profile</DialogTitle>
-                <DialogContent><Stack spacing={1} sx={{ pt: 1 }}>
+                <DialogContent><Stack alignItems="center" spacing={1.5} sx={{ pt: 1 }}>
+                    <ProfileAvatar id={session.user.id} name={session.user.displayName} onError={setProfilePhotoError} role="Admin" size={88} username={session.user.username} editable />
+                    <Typography color="text.secondary" variant="caption">Photo is stored in this browser only.</Typography>
+                    {profilePhotoError && <Alert onClose={() => setProfilePhotoError('')} severity="error">{profilePhotoError}</Alert>}
                     <Typography><strong>Name:</strong> {session.user.displayName}</Typography>
                     <Typography><strong>Username:</strong> {session.user.username || 'Not provided'}</Typography>
                     <Typography><strong>Role:</strong> Administrator</Typography>

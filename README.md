@@ -6,15 +6,18 @@ A full-stack work-tracking portal for managing employee and candidate workflows.
 
 - **Role-based portals** for Admins, Employees/mentors, and Candidates.
 - **Candidate management**, including profile lifecycle and resume upload/download.
-- **Work tracking and reviews** with task submissions, filtering, grades, and feedback.
-- **Notifications** for relevant workflow events, with read and dismiss actions.
-- **JWT authentication** and API-side authorization and ownership checks.
+- **Candidate work tracking** with a 30-day submission window and Pending, Approved, or Rejected review stages; reviewers can decide multiple pending tasks with one shared comment.
+- **Interview qualification** as a separate candidate-level decision after the 30-day submission window.
+- **Persisted, real-time notifications** with read and dismiss actions, delivered to the authenticated recipient through SignalR.
+- **Review dashboards and status charts** for task and interview stages, scoped to employee-owned candidates or the admin-wide directory.
+- **JWT authentication** and API-side authorization, candidate ownership, submission-window, and review-lock checks; the client keeps the token tab-scoped so reload restores the current page, while Back to login clears the session.
+- **Role-scoped floating chat** and authenticated read-only MCP lookup tools for employee, candidate, active/inactive, and work-review details.
 - **Responsive React interface** with light/dark theme support.
 
 ## Technology
 
-- **Frontend:** React, Vite, Material UI, Formik, and Emotion.
-- **Backend:** ASP.NET Core Web API on .NET 9, C#, and Entity Framework Core.
+- **Frontend:** React, Vite, Material UI, Formik, Emotion, and the SignalR JavaScript client.
+- **Backend:** ASP.NET Core Web API on .NET 9, C#, Entity Framework Core, and the .NET MCP C# SDK.
 - **Database:** SQL Server; schema managed through EF Core migrations.
 - **Tests and quality:** xUnit integration tests and ESLint.
 
@@ -80,7 +83,9 @@ npm run build
 - [Full project guide](fullstack/docs/PROJECT-GUIDE.md) — architecture, API endpoints, persistence, authentication, setup, and testing.
 - [Client project flow](fullstack/client/README.md) — frontend structure and request flow.
 - [Server README](fullstack/server/README.md) — API configuration, endpoints, and local development details.
-- [Work tracking guide](fullstack/WORK-TRACKING-GUIDE.md) — work entry and review behavior.
+- [Work tracking guide](fullstack/WORK-TRACKING-GUIDE.md) — submission-window rules, multi-task review, interview qualification, notifications, and end-to-end behavior.
+
+The [server README](fullstack/server/README.md) documents the work-review and interview-decision endpoints. The [client README](fullstack/client/README.md) documents the candidate and reviewer portal implementation.
 
 ## Development workflow tools
 

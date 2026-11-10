@@ -40,6 +40,21 @@ namespace fullstackapplication.Server.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<string>("InterviewDecision")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("InterviewDecisionAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("InterviewDecisionByEmployeeAccountId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("InterviewDecisionComment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -132,6 +147,11 @@ namespace fullstackapplication.Server.Migrations
                     b.Property<int?>("ReviewedByEmployeeAccountId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime>("SubmittedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -159,6 +179,9 @@ namespace fullstackapplication.Server.Migrations
                         .HasColumnType("int");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Department")
                         .HasMaxLength(100)

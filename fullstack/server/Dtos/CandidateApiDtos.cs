@@ -85,7 +85,15 @@ public sealed record CandidateProfileResponse(
     string? ResumeFileName,
     string? ResumeContentType,
     int? CreatorEmployeeAccountId = null,
-    string? CreatorDisplayName = null);
+    string? CreatorDisplayName = null,
+    DateTime? AccountCreatedAtUtc = null,
+    string InterviewDecision = "PendingReview",
+    string? InterviewDecisionComment = null,
+    DateTime? InterviewDecisionAtUtc = null,
+    int? InterviewDecisionByEmployeeAccountId = null,
+    DateTime? WorkSubmissionEndsAtUtc = null,
+    bool CanSubmitWork = false,
+    bool CanSetInterviewDecision = false);
 
 public sealed class ResumeUploadRequest
 {

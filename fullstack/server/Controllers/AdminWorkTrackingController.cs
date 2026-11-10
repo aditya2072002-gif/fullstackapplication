@@ -15,51 +15,41 @@ public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackin
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<CandidateWorkEntryResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<IReadOnlyList<CandidateWorkEntryResponse>>> GetEntries(
-        [FromQuery] int? candidateId,
-        [FromQuery] string? name,
-        [FromQuery] string? stack,
-        [FromQuery] DateOnly? dateFrom,
-        [FromQuery] DateOnly? dateTo,
-        [FromQuery] int? grade,
+        [FromQuery] SearchCandidateWorkEntriesRequest request,
         CancellationToken cancellationToken)
     {
-        if (dateFrom.HasValue && dateTo.HasValue && dateFrom > dateTo)
-        {
-            return BadRequest(new ProblemDetails { Title = "The start date must be on or before the end date." });
-        }
-
-        if (grade is < 0 or > 100)
-        {
-            return BadRequest(new ProblemDetails { Title = "Grade must be between 0 and 100." });
-        }
-
         var accountId = GetAccountId();
         if (accountId is null) return Forbid();
         var isAdmin = User.IsInRole(EmployeeRoles.Admin);
         return Ok(await workTrackingService.SearchAsync(
-            candidateId, name, stack, dateFrom, dateTo, grade, accountId.Value, isAdmin, cancellationToken));
+            request.CandidateId,
+            request.Name,
+            request.Stack,
+            request.DateFrom,
+            request.DateTo,
+            request.Status,
+            accountId.Value,
+            isAdmin,
+            cancellationToken));
     }
 
-    [HttpPut("{entryId:int}/review")]
-    [ProducesResponseType<CandidateWorkEntryResponse>(StatusCodes.Status200OK)]
+    [HttpPut("review")]
+    [ProducesResponseType<IReadOnlyList<CandidateWorkEntryResponse>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<CandidateWorkEntryResponse>> ReviewEntry(
-        int entryId,
-        ReviewCandidateWorkEntryRequest request,
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<IReadOnlyList<CandidateWorkEntryResponse>>> ReviewEntries(
+        ReviewCandidateWorkEntriesRequest request,
         CancellationToken cancellationToken)
     {
         var reviewerAccountId = GetAccountId();
-        if (reviewerAccountId is null)
-        {
-            return Forbid();
-        }
+        if (reviewerAccountId is null) return Forbid();
 
         var result = await workTrackingService.ReviewAsync(
             reviewerAccountId.Value,
             User.IsInRole(EmployeeRoles.Admin),
-            entryId,
             request,
             cancellationToken);
         return result.Kind switch
@@ -68,6 +58,34 @@ public sealed class AdminWorkTrackingController(IWorkTrackingService workTrackin
             ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
             ServiceResultKind.Invalid => BadRequest(new ProblemDetails { Title = result.Error }),
             _ => Ok(result.Value)
+        };
+    }
+
+    [HttpPut("/api/admin/candidates/{candidateId:int}/interview-decision")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateInterviewDecision(
+        int candidateId,
+        UpdateCandidateInterviewDecisionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var reviewerAccountId = GetAccountId();
+        if (reviewerAccountId is null) return Forbid();
+
+        var result = await workTrackingService.UpdateInterviewDecisionAsync(
+            reviewerAccountId.Value,
+            User.IsInRole(EmployeeRoles.Admin),
+            candidateId,
+            request,
+            cancellationToken);
+        return result.Kind switch
+        {
+            ServiceResultKind.NotFound => NotFound(),
+            ServiceResultKind.Invalid => BadRequest(new ProblemDetails { Title = result.Error }),
+            ServiceResultKind.Conflict => Conflict(new ProblemDetails { Title = result.Error }),
+            _ => NoContent()
         };
     }
 
